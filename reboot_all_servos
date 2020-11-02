@@ -1,0 +1,34 @@
+#!/usr/bin/python3
+"""!
+Reboot all servos
+"""
+
+import dynamixel_sdk as dxl_sdk
+
+# Protocol version
+PROTOCOL = 2.0               # See which protocol version is used in the Dynamixel
+
+# Default setting
+BAUDRATE = 1000000             # Dynamixel default baudrate : 57600
+DEVICENAME = '/dev/ttyDXL'  # Check which port is being used on your controller
+# ex) Windows: "COM1"   Linux: "/dev/ttyUSB0" Mac: "/dev/tty.usbserial-*"
+
+# Initialize PortHandler instance
+# Set the port path
+# Get methods and members of PortHandlerLinux or PortHandlerWindows
+port_handler = dxl_sdk.PortHandler(DEVICENAME)
+# Open port
+if port_handler.openPort():
+    print("Succeeded to open port")
+else:
+    quit()
+
+if port_handler.setBaudRate(BAUDRATE):
+    print("Succeeded to change the baudrate")
+else:
+    quit()
+packet_handler = dxl_sdk.PacketHandler(2)
+servos, _ = packet_handler.broadcastPing(port_handler)
+for servo in servos.keys():
+    packet_handler.reboot(port_handler, servo)
+    print('Rebooted servo {}'.format(servo))
