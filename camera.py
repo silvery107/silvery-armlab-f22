@@ -11,6 +11,7 @@ import rospy
 import cv2
 from std_msgs.msg import String
 from sensor_msgs.msg import Image
+from apriltag_ros.msg import *
 from cv_bridge import CvBridge, CvBridgeError
 
 
@@ -24,6 +25,7 @@ class Camera():
         @brief      Constructs a new instance.
         """
         self.VideoFrame = np.zeros((480,640,3)).astype(np.uint8)
+        self.TagImageFrame = np.zeros((480,640,3)).astype(np.uint8)
         self.DepthFrameRaw = np.zeros((480,640)).astype(np.uint16)
         """ Extra arrays for colormaping the depth image"""
         self.DepthFrameHSV = np.zeros((480,640,3)).astype(np.uint8)
@@ -36,6 +38,7 @@ class Camera():
         self.new_click = False
         self.rgb_click_points = np.zeros((5,2),int)
         self.depth_click_points = np.zeros((5,2),int)
+        self.tag_detections = np.array([])
 
         """ block info """
         self.block_contours = np.array([])
@@ -51,9 +54,9 @@ class Camera():
         """!
         @brief Converts frame to colormaped formats in HSV and RGB
         """
-        self.DepthFrameHSV[...,0] = self.DepthFrameRaw
-        self.DepthFrameHSV[...,1] = 0x9F
-        self.DepthFrameHSV[...,2] = 0xFF
+        self.DepthFrameHSV[...,0] = self.DepthFrameRaw >> 1
+        self.DepthFrameHSV[...,1] = 0x7F
+        self.DepthFrameHSV[...,2] = 0xDF
         self.DepthFrameRGB = cv2.cvtColor(self.DepthFrameHSV,cv2.COLOR_HSV2RGB)
 
     def loadVideoFrame(self):
@@ -102,6 +105,24 @@ class Camera():
            return img
        except:
            return None
+
+    def convertQtTagImageFrame(self):
+        """!
+        @brief      Converts tag image frame to format suitable for Qt
+
+        @return     QImage
+        """
+
+        try:
+            frame = cv2.resize(self.TagImageFrame, (640, 480))
+            img = QImage(frame,
+                             frame.shape[1],
+                             frame.shape[0],
+                             QImage.Format_RGB888
+                             )
+            return img
+        except:
+            return None
 
     def getAffineTransform(self, coord1, coord2):
         """!
@@ -173,6 +194,31 @@ class ImageListener:
       print(e)
     self.camera.VideoFrame = cv_image
 
+class TagImageListener:
+  def __init__(self, topic, camera):
+    self.topic = topic
+    self.bridge = CvBridge()
+    self.image_sub = rospy.Subscriber(topic,Image,self.callback)
+    self.camera = camera
+
+  def callback(self,data):
+    try:
+      cv_image = self.bridge.imgmsg_to_cv2(data, data.encoding)
+    except CvBridgeError as e:
+      print(e)
+    self.camera.TagImageFrame = cv_image
+
+class TagDetectionListener:
+  def __init__(self, topic, camera):
+    self.topic = topic
+    self.tag_sub = rospy.Subscriber(topic,AprilTagDetectionArray,self.callback)
+    self.camera = camera
+  def callback(self,data):
+    for detection in data.detections:
+       print(detection.id[0])
+       print(detection.pose.pose.pose.position)
+
+
 class DepthListener:
   def __init__(self, topic, camera):
     self.topic = topic
@@ -196,14 +242,19 @@ class VideoThread(QThread):
         self.camera = camera
         image_topic = "/camera/color/image_raw"
         depth_topic = "/camera/aligned_depth_to_color/image_raw"
+        tag_image_topic = "/tag_detections_image"
+        tag_detection_topic = "/tag_detections"
         image_listener = ImageListener(image_topic, self.camera)
         depth_listener = DepthListener(depth_topic, self.camera)
+        tag_image_listener = TagImageListener(tag_image_topic, self.camera)
+        tag_detection_listener = TagDetectionListener(tag_detection_topic, self.camera)
 
 
     def run(self):
         if __name__ == '__main__':
             cv2.namedWindow("Image window", cv2.WINDOW_NORMAL)
             cv2.namedWindow("Depth window", cv2.WINDOW_NORMAL)
+            cv2.namedWindow("Tag window", cv2.WINDOW_NORMAL)
             time.sleep(0.5)
         while True:
             rgb_frame = self.camera.convertQtVideoFrame()
@@ -212,8 +263,9 @@ class VideoThread(QThread):
                 self.updateFrame.emit(rgb_frame, depth_frame)
             time.sleep(0.03)
             if __name__ == '__main__':
-                cv2.imshow("Image window", self.camera.VideoFrame)
+                cv2.imshow("Image window", cv2.cvtColor(self.camera.VideoFrame,cv2.COLOR_RGB2BGR))
                 cv2.imshow("Depth window", self.camera.DepthFrameRGB)
+                cv2.imshow("Tag window", cv2.cvtColor(self.camera.TagImageFrame,cv2.COLOR_RGB2BGR))
                 cv2.waitKey(3)
                 time.sleep(0.03)
 
