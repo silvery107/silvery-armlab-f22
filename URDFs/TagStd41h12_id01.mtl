@@ -1,0 +1,5 @@
+newmtl Material_10
+Kd 1 1 1
+d 1
+map_Kd Texture_10.png
+
