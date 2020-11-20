@@ -18,3 +18,4 @@ catkin_make
 source ~/.bashrc
 sudo cp ~/interbotix_ws/src/interbotix_ros_arms/interbotix_sdk/10-interbotix-udev.rules /etc/udev/rules.d
 sudo udevadm control --reload-rules && udevadm trigger
+sudo cp config/*.yaml /opt/ros/melodic/share/apriltag_ros/config/
