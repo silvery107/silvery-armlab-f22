@@ -21,7 +21,10 @@
 #include "ros/ros.h"
 #include "std_msgs/Header.h"
 #include "sensor_msgs/Image.h"
+#include "sensor_msgs/CameraInfo.h"
+#include "sensor_msgs/RegionOfInterest.h"
 
+#include <boost/array.hpp>
 #include <signal.h>
 #include <iostream>
 
@@ -30,14 +33,22 @@
 
 #define ROS_DEPTH_TOPIC_NAME "/camera/aligned_depth_to_color/image_raw"
 #define ROS_IMAGE_TOPIC_NAME "/camera/color/image_raw"
+#define ROS_CAMERA_INFO_TOPIC_NAME "/camera/color/camera_info"
 
 // global because I am lazy
 ros::Publisher pub_depth;
 ros::Publisher pub_color;
+ros::Publisher pub_cam_info;
+
 
 uint32_t seq = 0;
 uint32_t depth_received = 0;
 uint32_t color_received = 0;
+
+_Float64 _D [5] = {0.0, 0.0, 0.0, 0.0, 0.0};
+boost::array<_Float64, 9> _K = {610, 0.0, 320, 0.0, 610, 240, 0.0, 0.0, 1.0};
+boost::array<_Float64, 9> _R = {1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0};
+boost::array<_Float64, 12> _P = {610, 0.0, 320, 0.0, 0.0, 610, 240, 0.0, 0.0, 0.0, 1.0, 0.0};
 
 
 // adding this to make things exit nicely
@@ -77,6 +88,38 @@ void cb_depth(ConstImageStampedPtr &_msg)
   delete data;
 }
 
+void pub_camInfo()
+{
+  sensor_msgs::CameraInfo to_send;
+
+  std_msgs::Header to_send_header;
+  to_send_header.seq = seq++;
+  to_send_header.stamp = ros::Time::now();
+  to_send_header.frame_id = "camera_color_optical_frame";
+
+  to_send.header = to_send_header;
+  to_send.height = 480;
+  to_send.width = 640;
+  to_send.distortion_model = "plumb_bob";
+  to_send.D = std::vector<_Float64>(_D, _D + 5 + 1);
+  to_send.K = _K;
+  to_send.R = _R;
+  to_send.P = _P;
+  to_send.binning_x = 0;
+  to_send.binning_y = 0;
+
+  sensor_msgs::RegionOfInterest to_send_roi;
+  to_send_roi.x_offset = 0;
+  to_send_roi.y_offset = 0;
+  to_send_roi.height = 0;
+  to_send_roi.width = 0;
+  to_send_roi.do_rectify = false;
+
+  to_send.roi = to_send_roi;
+
+  pub_cam_info.publish(to_send);
+}
+
 void cb_color(ConstImageStampedPtr &_msg)
 {
   std::cout << "\rmsgs received: " << depth_received << " depth, " << color_received++ << " color" << std::flush;
@@ -101,6 +144,8 @@ void cb_color(ConstImageStampedPtr &_msg)
   to_send.data = std::vector<unsigned char>(data, data + _msg->image().data().length() + 1);
 
   pub_color.publish(to_send);
+
+  pub_camInfo();
 
   delete data;
 }
@@ -127,6 +172,7 @@ int main(int _argc, char **_argv)
   // Create ROS publishers
   pub_depth = nh.advertise<sensor_msgs::Image>(ROS_DEPTH_TOPIC_NAME, 1000);
   pub_color = nh.advertise<sensor_msgs::Image>(ROS_IMAGE_TOPIC_NAME, 1000);
+  pub_cam_info = nh.advertise<sensor_msgs::CameraInfo>(ROS_CAMERA_INFO_TOPIC_NAME, 1000);
 
   // enter the waiting loop
   ros::spin();
