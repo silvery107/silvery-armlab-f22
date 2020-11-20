@@ -148,8 +148,8 @@ class Gui(QMainWindow):
         #self.ui.rdoutTheta.setText(str("%+.2f" % (pos[4])))
         #self.ui.rdoutPsi.setText(str("%+.2f" % (pos[5])))
     
-    @pyqtSlot(QImage, QImage)
-    def setImage(self, rgb_image, depth_image):
+    @pyqtSlot(QImage, QImage, QImage)
+    def setImage(self, rgb_image, depth_image, tag_image):
         """!
         @brief      Display the images from the camera.
 
@@ -160,6 +160,8 @@ class Gui(QMainWindow):
             self.ui.videoDisplay.setPixmap(QPixmap.fromImage(rgb_image))
         if(self.ui.radioDepth.isChecked()):
             self.ui.videoDisplay.setPixmap(QPixmap.fromImage(depth_image))
+        if(self.ui.radioUsr1.isChecked()):
+            self.ui.videoDisplay.setPixmap(QPixmap.fromImage(tag_image))
 
     """ Other callback functions attached to GUI elements"""
 

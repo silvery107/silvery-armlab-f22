@@ -54,9 +54,9 @@ class Camera():
         """!
         @brief Converts frame to colormaped formats in HSV and RGB
         """
-        self.DepthFrameHSV[...,0] = self.DepthFrameRaw >> 1
-        self.DepthFrameHSV[...,1] = 0x7F
-        self.DepthFrameHSV[...,2] = 0xDF
+        self.DepthFrameHSV[...,0] = self.DepthFrameRaw
+        self.DepthFrameHSV[...,1] = 0x9F
+        self.DepthFrameHSV[...,2] = 0xFF
         self.DepthFrameRGB = cv2.cvtColor(self.DepthFrameHSV,cv2.COLOR_HSV2RGB)
 
     def loadVideoFrame(self):
@@ -214,9 +214,10 @@ class TagDetectionListener:
     self.tag_sub = rospy.Subscriber(topic,AprilTagDetectionArray,self.callback)
     self.camera = camera
   def callback(self,data):
-    for detection in data.detections:
-       print(detection.id[0])
-       print(detection.pose.pose.pose.position)
+    self.camera.tag_detections = data
+    #for detection in data.detections:
+       #print(detection.id[0])
+       #print(detection.pose.pose.pose.position)
 
 
 class DepthListener:
@@ -231,11 +232,12 @@ class DepthListener:
       cv_depth = self.bridge.imgmsg_to_cv2(data, data.encoding)
     except CvBridgeError as e:
       print(e)
-    self.camera.DepthFrameRaw = cv_depth
+    self.camera.DepthFrameRaw += cv_depth
+    self.camera.DepthFrameRaw = self.camera.DepthFrameRaw/2
     self.camera.ColorizeDepthFrame()
 
 class VideoThread(QThread):
-    updateFrame = pyqtSignal(QImage, QImage)
+    updateFrame = pyqtSignal(QImage, QImage, QImage)
 
     def __init__(self, camera, parent=None):
         QThread.__init__(self, parent=parent) 
@@ -259,8 +261,9 @@ class VideoThread(QThread):
         while True:
             rgb_frame = self.camera.convertQtVideoFrame()
             depth_frame = self.camera.convertQtDepthFrame()
+            tag_frame = self.camera.convertQtTagImageFrame()
             if((rgb_frame != None)&(depth_frame != None)):
-                self.updateFrame.emit(rgb_frame, depth_frame)
+                self.updateFrame.emit(rgb_frame, depth_frame, tag_frame)
             time.sleep(0.03)
             if __name__ == '__main__':
                 cv2.imshow("Image window", cv2.cvtColor(self.camera.VideoFrame,cv2.COLOR_RGB2BGR))
