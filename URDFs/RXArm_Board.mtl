@@ -1,0 +1,5 @@
+newmtl Material_18
+Kd 1 1 1
+d 1
+map_Kd Texture_18.png
+
