@@ -88,20 +88,20 @@ void cb_depth(ConstImageStampedPtr &_msg)
   delete data;
 }
 
-void pub_camInfo()
+void pub_camInfo(uint32_t seq_in, ros::Time ts_in)
 {
   sensor_msgs::CameraInfo to_send;
 
   std_msgs::Header to_send_header;
-  to_send_header.seq = seq++;
-  to_send_header.stamp = ros::Time::now();
+  to_send_header.seq = seq_in;
+  to_send_header.stamp = ts_in;
   to_send_header.frame_id = "camera_color_optical_frame";
 
   to_send.header = to_send_header;
   to_send.height = 480;
   to_send.width = 640;
   to_send.distortion_model = "plumb_bob";
-  to_send.D = std::vector<_Float64>(_D, _D + 5 + 1);
+  to_send.D = std::vector<_Float64>(_D, _D + 5);
   to_send.K = _K;
   to_send.R = _R;
   to_send.P = _P;
@@ -127,8 +127,9 @@ void cb_color(ConstImageStampedPtr &_msg)
   sensor_msgs::Image to_send;
 
   std_msgs::Header to_send_header;
-  to_send_header.seq = seq++;
-  to_send_header.stamp = ros::Time::now();
+  to_send_header.seq = seq;
+  auto ts = ros::Time::now();
+  to_send_header.stamp = ts;
   to_send_header.frame_id = "camera_color_optical_frame";
 
   to_send.header = to_send_header;
@@ -137,15 +138,15 @@ void cb_color(ConstImageStampedPtr &_msg)
   to_send.encoding = "rgb8";
   to_send.is_bigendian = 0;
 
-  auto data = new char[_msg->image().data().length() + 1];
+  auto data = new char[_msg->image().data().length()];
   memcpy(data, _msg->image().data().c_str(), _msg->image().data().length());
 
   to_send.step = _msg->image().width() * 3;
-  to_send.data = std::vector<unsigned char>(data, data + _msg->image().data().length() + 1);
-
+  to_send.data = std::vector<unsigned char>(data, data + _msg->image().data().length());
+  printf("data size: %ld",  _msg->image().data().length());
   pub_color.publish(to_send);
 
-  pub_camInfo();
+  pub_camInfo(seq++, ts);
 
   delete data;
 }

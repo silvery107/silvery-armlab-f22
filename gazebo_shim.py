@@ -3,6 +3,8 @@ import rospy
 import roslib; roslib.load_manifest('urdfdom_py')
 import threading
 import numpy as np
+import json
+import random
 import modern_robotics as mr
 from interbotix_sdk import angle_manipulation as ang
 from urdf_parser_py.urdf import URDF
@@ -201,7 +203,7 @@ class GazeboShim(object):
             self.gripper_pos_cmd = [-1 * self.lower_gripper_limit, self.lower_gripper_limit]
         
         trajPoint.positions = self.gripper_pos_cmd
-        trajPoint.effort = [-cmd.data, cmd.data]
+        trajPoint.effort = [-cmd.data * 1000, cmd.data * 1000]
 
         toReturn.points = [trajPoint]
         print("returning!")
@@ -226,6 +228,65 @@ class GazeboShim(object):
         print(data)
         self.pub_gazebo_gripper_commands.publish(self.generateGripperTrajectory(data))
         pass
+
+class Block(object):
+    def __init__(self, sdf_contents, pose_t, pose_euler):
+        self.sdf_data = sdf_contents
+        self.pose_t = pose_t
+        self.pose_euler = pose_euler
+
+    def spawn(self, model_spawner, idx):
+        block_pose = Pose()
+        block_pose.position.x = self.pose_t[0]
+        block_pose.position.y = self.pose_t[1]
+        block_pose.position.z = self.pose_t[2]
+        quat = euler_to_quaternion(self.pose_euler[0], self.pose_euler[1], self.pose_euler[2])
+        block_pose.orientation.x = quat[0]
+        block_pose.orientation.y = quat[1]
+        block_pose.orientation.z = quat[2]
+        block_pose.orientation.w = quat[3]
+        model_spawner("block_" + str(idx), self.sdf_data, "block_" + str(idx), block_pose, "world")
+
+class BlockSpawner(object):
+    def __init__(self, config = None, num_random_blocks = 0):
+        self.baseBlockSdf = "./URDFs/block_red.sdf"
+        self.colorDict = {\
+            "red" : "1 0 0 1",\
+            "blue" : "0 0 1 1",\
+            "green" : "0 1 0 1",\
+            "yellow" : "1 1 0 1",\
+            "orange" :  "1 0.5 0 1",\
+            "purple" : "0.5 0 1 1",\
+            "black" : "0 0 0 1"}
+
+        self.blocks = []
+
+        if config is not None:
+            configData = json.load(open(config, 'r'))
+            for blockConfig in configData["blocks"]:
+                sdf_contents = open(self.baseBlockSdf, 'r').read()
+                block_color = blockConfig["color"]
+                replace_color = self.colorDict[block_color]
+                sdf_contents = sdf_contents.replace(">1 0 0 1<", ">" + replace_color + "<")
+                block = Block(sdf_contents, blockConfig["pose_t"], blockConfig["pose_euler"])
+                self.blocks.append(block)
+
+        for i in range(num_random_blocks):
+            sdf_contents = open(self.baseBlockSdf, 'r').read()
+            sdf_contents = sdf_contents.replace(">1 0 0 1<", ">" + random.choice(list(self.colorDict.values())) + "<")
+            pose_t = [random.uniform(0.1, 0.3) * random.choice([-1, 1]),\
+                 random.uniform(0.1, 0.3) * random.choice([-1, 1]),\
+                      random.uniform(0.1, 0.3)]
+            pose_e = [random.uniform(-np.pi, np.pi), random.uniform(-np.pi, np.pi), random.uniform(-np.pi, np.pi)]
+            block = Block(sdf_contents, pose_t, pose_e)
+            self.blocks.append(block)
+
+    def spawnAllBlocks(self, model_spawner):
+        i = 0
+        for block in self.blocks:
+            block.spawn(model_spawner, i)
+            i = i + 1
+            
 
 # shamelessly taken from https://stackoverflow.com/questions/53033620/how-to-convert-euler-angles-to-quaternions-and-get-the-same-euler-angles-back-fr
 def euler_to_quaternion(yaw, pitch, roll):
@@ -265,8 +326,8 @@ if __name__ == '__main__':
     # the 0.321 and -0.286 are because the origin of the .obj file wasnt placed at 0,0
     tag_pose.position.x = -0.1425
     tag_pose.position.y = 0.0
-    tag_pose.position.z = 0.037
-    quat = euler_to_quaternion(3.1415/2, 0.0, 0.0)
+    tag_pose.position.z = 0.038
+    quat = euler_to_quaternion(-3.1415/2, 3.1415, 0.0)
     tag_pose.orientation.x = quat[0]
     tag_pose.orientation.y = quat[1]
     tag_pose.orientation.z = quat[2]
@@ -297,5 +358,8 @@ if __name__ == '__main__':
     print("calling spawn_sdf_model service for tag")
     spawn_model_proxy("robotApril", sdff, "robot_april", tag_pose, "world")
 
+    print("loading blocks config & spawning blocks")
+    blockSpawner = BlockSpawner("sample_block_config.json", 3)
+    blockSpawner.spawnAllBlocks(spawn_model_proxy)
 
     rospy.spin()
