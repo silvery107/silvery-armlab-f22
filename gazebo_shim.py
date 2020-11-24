@@ -311,6 +311,16 @@ if __name__ == '__main__':
     realsense_pose.orientation.z = quat[2]
     realsense_pose.orientation.w = quat[3]
 
+    light_pose = Pose()
+    light_pose.position.x = 0
+    light_pose.position.y = 0
+    light_pose.position.z = 1.2
+    quat = euler_to_quaternion(0.0, 3.1415/2, 0.0)
+    light_pose.orientation.x = quat[0]
+    light_pose.orientation.y = quat[1]
+    light_pose.orientation.z = quat[2]
+    light_pose.orientation.w = quat[3]
+
     board_pose = Pose()
     # the 0.321 and -0.286 are because the origin of the .obj file wasnt placed at 0,0
     board_pose.position.x = 0.321 + 0.305
@@ -345,6 +355,12 @@ if __name__ == '__main__':
     sdff = sdff.replace("<gravity>1", "<gravity>0")
     print("calling spawn_sdf_model service for realsense")
     spawn_model_proxy("realsense_cam", sdff, "realsense_ns", realsense_pose, "world")
+
+    print("loading light model")
+    f = open("./URDFs/overhead_light.sdf","r")
+    sdff = f.read()
+    print("calling spawn_sdf_model service for light")
+    spawn_model_proxy("overhead_light", sdff, "overhead_light", light_pose, "world")
 
     print("loading board model")
     f = open("./URDFs/550board.sdf","r")
