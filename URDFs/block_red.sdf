@@ -1,0 +1,58 @@
+<?xml version='1.0'?>
+<sdf version="1.6">
+  <model name="block">
+    <pose>0 0 0 0 0 0</pose>
+    <static>false</static>
+    <link name="link">
+      <inertial>
+        <mass>0.039</mass> <!-- 39 grams or so per my scale -->
+        <!--<allow_auto_disable>1</allow_auto_disable>-->
+        <inertia> <!-- inertias are tricky to compute -->
+          <!-- http://gazebosim.org/tutorials?tut=inertia&cat=build_robot -->
+          <ixx>0.000009348</ixx>       <!-- for a box: ixx = 0.083 * mass * (y*y + z*z) -->
+          <ixy>0.0</ixy>         <!-- for a box: ixy = 0 -->
+          <ixz>0.0</ixz>         <!-- for a box: ixz = 0 -->
+          <iyy>0.000009348</iyy>       <!-- for a box: iyy = 0.083 * mass * (x*x + z*z) -->
+          <iyz>0.0</iyz>         <!-- for a box: iyz = 0 -->
+          <izz>0.000009348</izz>       <!-- for a box: izz = 0.083 * mass * (x*x + y*y) -->
+        </inertia>
+      </inertial>
+      <collision name="collision">
+        <geometry>
+          <box>
+            <size>0.038 0.038 0.038</size> <!-- average 38 mm per side -->
+          </box>
+        </geometry>
+        <surface>
+          <friction>
+            <ode>
+              <mu>1000.0</mu>
+              <mu2>1000.0</mu2>
+            </ode>
+          </friction>
+          <contact>
+            <ode>
+              <kp>1000000.0</kp>
+              <kd>1.5</kd>
+              <max_vel>0.0</max_vel>
+              <min_depth>0.003</min_depth>
+            </ode>
+          </contact>
+        </surface>
+      </collision>
+      <visual name="visual">
+        <geometry>
+          <box>
+            <size>0.038 0.038 0.038</size> <!-- average 38 mm per side -->
+          </box>
+        </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+            <specular>0.1 0.1 0.1 1</specular>
+            <emissive>0 0 0 0</emissive>
+        </material>
+      </visual>
+    </link>
+  </model>
+</sdf>
