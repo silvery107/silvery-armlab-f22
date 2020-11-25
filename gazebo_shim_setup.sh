@@ -13,6 +13,7 @@ cd ../../..
 echo "%%%%%%%%%%%%% running xml macros & generating URDF's %%%%%%%%%%%%%"
 cd URDFs
 test -f "$1/src/interbotix_ros_arms/interbotix_descriptions/urdf/rx200.urdf.xacro"
+cp rx200.urdf.xacro $1/src/interbotix_ros_arms/interbotix_descriptions/urdf/rx200.urdf.xacro
 rosrun xacro xacro $1/src/interbotix_ros_arms/interbotix_descriptions/urdf/rx200.urdf.xacro > robot.urdf
 rosrun xacro xacro ./550board.sdf.xacro uri:=$PWD/RXArm_Board.obj > 550board.sdf
 rosrun xacro xacro ./robot_tag.sdf.xacro uri:=$PWD/TagStd41h12_id01.obj > robot_tag.sdf

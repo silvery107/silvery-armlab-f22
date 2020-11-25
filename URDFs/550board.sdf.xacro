@@ -1,5 +1,5 @@
 <?xml version='1.0'?>
-<sdf version="1.4" xmlns:xacro="http://ros.org/wiki/xacro">
+<sdf version="1.6" xmlns:xacro="http://ros.org/wiki/xacro">
   <xacro:arg name="uri" default="" />
   <model name="550board">
     <pose>0 0 0 0 0 0</pose>
@@ -14,6 +14,30 @@
           </mesh>
         </geometry>
       </visual>
+      <!--<collision name="collision">
+        <geometry>
+          <mesh>
+            <uri>$(arg uri)</uri>
+            <scale>0.001 0.001 0.001</scale>
+          </mesh>
+        </geometry>
+        <surface>
+          <friction>
+            <ode>
+              <mu>1000</mu>
+              <mu2>1000</mu2>
+            </ode>
+          </friction>
+          <contact>
+            <ode>
+              <kp>1000000.0</kp>
+              <kd>1.0</kd>
+              <maxVel>0.0</maxVel>
+              <minDepth>0.001</minDepth>
+            </ode>
+          </contact>
+          </surface>
+      </collision>-->
     </link>
   </model>
 </sdf>
