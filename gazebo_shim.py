@@ -252,8 +252,9 @@ class BlockSpawner(object):
         self.baseBlockSdf = "./URDFs/block_red.sdf"
         self.colorDict = {\
             "red" : "1 0 0 1",\
+            "pink" : "1 .4 .4 1",\
             "blue" : "0 0 1 1",\
-            "green" : "0 1 0 1",\
+            "green" : "0 0.5 0 1",\
             "yellow" : "1 1 0 1",\
             "orange" :  "1 0.5 0 1",\
             "purple" : "0.5 0 1 1",\
@@ -375,7 +376,8 @@ if __name__ == '__main__':
     spawn_model_proxy("robotApril", sdff, "robot_april", tag_pose, "world")
 
     print("loading blocks config & spawning blocks")
-    blockSpawner = BlockSpawner("sample_block_config.json", 3)
+    #use the last positional arg to randomly generate blocks
+    blockSpawner = BlockSpawner("sample_block_config.json", 0)
     blockSpawner.spawnAllBlocks(spawn_model_proxy)
 
     rospy.spin()

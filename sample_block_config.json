@@ -4,9 +4,10 @@
         {"color":"red", "pose_t":[0.0, 0.1, 0.04], "pose_euler":[0.0, 0.0, 0.0]},
         {"color":"blue", "pose_t":[0.0, 0.2, 0.04], "pose_euler":[0.0, 0.0, 0.0]},
         {"color":"green", "pose_t":[0.0, 0.3, 0.04], "pose_euler":[0.0, 0.0, 0.0]},
-        {"color":"orange", "pose_t":[0.0, -0.1, 0.04], "pose_euler":[0.0, 0.0, 0.0]},
-        {"color":"yellow", "pose_t":[0.0, -0.1, 0.08], "pose_euler":[0.0, 0.0, 0.0]},
-        {"color":"purple", "pose_t":[0.0, -0.1, 0.12], "pose_euler":[0.0, 0.0, 0.0]},
-        {"color":"black", "pose_t":[0.1, 0.1, 0.04], "pose_euler":[0.0, 0.0, 0.0]}
+        {"color":"orange", "pose_t":[0.1, -0.1, 0.04], "pose_euler":[0.0, 0.0, 0.0]},
+        {"color":"yellow", "pose_t":[0.1, -0.1, 0.08], "pose_euler":[0.0, 0.0, 0.0]},
+        {"color":"purple", "pose_t":[0.1, -0.1, 0.12], "pose_euler":[0.0, 0.0, 0.0]},
+        {"color":"black", "pose_t":[0.1, 0.2, 0.04], "pose_euler":[0.0, 0.0, 0.785]},
+        {"color":"pink", "pose_t":[0.1, 0.2, 0.08], "pose_euler":[0.0, 0.0, 0.785]}
     ]
 }
