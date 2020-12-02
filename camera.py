@@ -11,6 +11,7 @@ import rospy
 import cv2
 from std_msgs.msg import String
 from sensor_msgs.msg import Image
+from sensor_msgs.msg import CameraInfo
 from apriltag_ros.msg import *
 from cv_bridge import CvBridge, CvBridgeError
 
@@ -34,6 +35,7 @@ class Camera():
         # mouse clicks & calibration variables
         self.depth2rgb_affine = np.float32([[1,0,0],[0,1,0]])
         self.cameraCalibrated = False
+        self.intrinsic_matrix = np.array([])
         self.last_click = np.array([0,0])
         self.new_click = False
         self.rgb_click_points = np.zeros((5,2),int)
@@ -219,6 +221,14 @@ class TagDetectionListener:
        #print(detection.id[0])
        #print(detection.pose.pose.pose.position)
 
+class CameraInfoListener:
+  def __init__(self, topic, camera):
+    self.topic = topic
+    self.tag_sub = rospy.Subscriber(topic,CameraInfo,self.callback)
+    self.camera = camera
+  def callback(self,data):
+    self.camera.intrinsic_matrix = np.reshape(data.K, (3,3))
+    #print(self.camera.intrinsic_matrix)
 
 class DepthListener:
   def __init__(self, topic, camera):
@@ -244,11 +254,13 @@ class VideoThread(QThread):
         self.camera = camera
         image_topic = "/camera/color/image_raw"
         depth_topic = "/camera/aligned_depth_to_color/image_raw"
+        camera_info_topic = "/camera/color/camera_info"
         tag_image_topic = "/tag_detections_image"
         tag_detection_topic = "/tag_detections"
         image_listener = ImageListener(image_topic, self.camera)
         depth_listener = DepthListener(depth_topic, self.camera)
         tag_image_listener = TagImageListener(tag_image_topic, self.camera)
+        camera_info_listener = CameraInfoListener(camera_info_topic, self.camera)
         tag_detection_listener = TagDetectionListener(tag_detection_topic, self.camera)
 
 
