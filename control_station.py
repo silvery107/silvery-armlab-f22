@@ -264,5 +264,4 @@ def main(args=None):
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
     ap.add_argument("-c", "--dhconfig", required=False, help="path to DH parameters csv file")
-
     main(args=vars(ap.parse_args()))

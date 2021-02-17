@@ -25,11 +25,11 @@ class Camera():
         """!
         @brief      Constructs a new instance.
         """
-        self.VideoFrame = np.zeros((480,640,3)).astype(np.uint8)
-        self.TagImageFrame = np.zeros((480,640,3)).astype(np.uint8)
-        self.DepthFrameRaw = np.zeros((480,640)).astype(np.uint16)
+        self.VideoFrame = np.zeros((720,1280,3)).astype(np.uint8)
+        self.TagImageFrame = np.zeros((720,1280,3)).astype(np.uint8)
+        self.DepthFrameRaw = np.zeros((720,1280)).astype(np.uint16)
         """ Extra arrays for colormaping the depth image"""
-        self.DepthFrameHSV = np.zeros((480,640,3)).astype(np.uint8)
+        self.DepthFrameHSV = np.zeros((720,1280,3)).astype(np.uint8)
         self.DepthFrameRGB=np.array([])
 
         # mouse clicks & calibration variables
@@ -56,9 +56,9 @@ class Camera():
         """!
         @brief Converts frame to colormaped formats in HSV and RGB
         """
-        self.DepthFrameHSV[...,0] = self.DepthFrameRaw
-        self.DepthFrameHSV[...,1] = 0x9F
-        self.DepthFrameHSV[...,2] = 0xFF
+        self.DepthFrameHSV[...,0] = self.DepthFrameRaw >> 1
+        self.DepthFrameHSV[...,1] = 0xFF
+        self.DepthFrameHSV[...,2] = 0x9F
         self.DepthFrameRGB = cv2.cvtColor(self.DepthFrameHSV,cv2.COLOR_HSV2RGB)
 
     def loadVideoFrame(self):
@@ -82,7 +82,7 @@ class Camera():
         """
 
         try:
-            frame = cv2.resize(self.VideoFrame, (640, 480))
+            frame = cv2.resize(self.VideoFrame, (1280, 720))
             img = QImage(frame,
                              frame.shape[1],
                              frame.shape[0],
@@ -116,7 +116,7 @@ class Camera():
         """
 
         try:
-            frame = cv2.resize(self.TagImageFrame, (640, 480))
+            frame = cv2.resize(self.TagImageFrame, (1280, 720))
             img = QImage(frame,
                              frame.shape[1],
                              frame.shape[0],
