@@ -1,5 +1,5 @@
 #!/bin/bash
-gnome-terminal -- roslaunch realsense2_camera rs_435i.launch align_depth:=true
+gnome-terminal -- roslaunch realsense2_camera rs_l515.launch align_depth:=true
 sleep 3
 gnome-terminal -- roslaunch apriltag_ros continuous_detection.launch camera_name:=/camera/color/ image_topic:=image_raw
 sleep 3
