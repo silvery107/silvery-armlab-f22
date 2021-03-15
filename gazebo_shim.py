@@ -1,6 +1,7 @@
 import math
 import rospy
-import roslib; roslib.load_manifest('urdfdom_py')
+import roslib
+roslib.load_manifest('urdfdom_py')
 import threading
 import numpy as np
 import json
@@ -24,23 +25,28 @@ from interbotix_sdk.srv import RegisterValuesResponse
 from gazebo_msgs.srv import SpawnModel
 from geometry_msgs.msg import Pose
 
+
 class GazeboShim(object):
-    def __init__(self, use_gripper = True):
+    def __init__(self, use_gripper=True):
         rospy.init_node("armlab_gazebo_shim")
 
-        robot = URDF.from_xml_file("./URDFs/robot.urdf")#"/home/stanlew/src/armlab-w20-soln/robot.urdf")
+        robot = URDF.from_xml_file(
+            "./URDFs/robot.urdf"
+        )  #"/home/stanlew/src/armlab-w20-soln/robot.urdf")
 
         # member variables
         self.joint_names = []
-        self.joint_ids = [1, 2, 4, 5, 6, 7] # hard coded for now - will need to get from config yaml
+        self.joint_ids = [
+            1, 2, 4, 5, 6, 7
+        ]  # hard coded for now - will need to get from config yaml
         self.lower_joint_limits = []
         self.upper_joint_limits = []
         self.velocity_limits = []
         self.lower_gripper_limit = 0.
         self.upper_gripper_limit = 0.
         self.use_gripper = use_gripper
-        self.home_pos = [0.0, 0.0, 0.0, 0.0, 0.0] # hard coded for now
-        self.sleep_pos = [0, -1.80, -1.55, -0.8, 0] # hard coded for now
+        self.home_pos = [0.0, 0.0, 0.0, 0.0, 0.0]  # hard coded for now
+        self.sleep_pos = [0, -1.80, -1.55, -0.8, 0]  # hard coded for now
         self.num_joints = 0
         self.num_single_joints = 0
         self.motor_register_mock = []
@@ -50,26 +56,44 @@ class GazeboShim(object):
         self.info_from_urdf(robot)
 
         # services
-        self.robo_info_srv = rospy.Service('rx200/get_robot_info', RobotInfo, self.get_robot_info)
-        self.operating_mode_srv = rospy.Service('rx200/set_operating_modes', OperatingModes, self.set_operating_mode)
-        self.set_motor_reg_srv = rospy.Service('rx200/set_motor_register_values', RegisterValues, self.set_motor_reg)
-        self.get_motor_reg_srv = rospy.Service('rx200/get_motor_register_values', RegisterValues, self.get_motor_reg)
+        self.robo_info_srv = rospy.Service('rx200/get_robot_info', RobotInfo,
+                                           self.get_robot_info)
+        self.operating_mode_srv = rospy.Service('rx200/set_operating_modes',
+                                                OperatingModes,
+                                                self.set_operating_mode)
+        self.set_motor_reg_srv = rospy.Service(
+            'rx200/set_motor_register_values', RegisterValues,
+            self.set_motor_reg)
+        self.get_motor_reg_srv = rospy.Service(
+            'rx200/get_motor_register_values', RegisterValues,
+            self.get_motor_reg)
         # subscribers
-        self.joint_state_sub = rospy.Subscriber("/rx200/joint_states", JointState, self.callback_JointState)
-        self.sub_joint_commands = rospy.Subscriber("/rx200/joint/commands", JointCommands, self.callback_JointCommands)
-        self.sub_single_command = rospy.Subscriber("/rx200/single_joint/command", SingleCommand, self.callback_SingleCommand)
-        self.sub_gripper_command = rospy.Subscriber("/rx200/gripper/command", Float64, self.callback_GripperCommand)
+        self.joint_state_sub = rospy.Subscriber("/rx200/joint_states",
+                                                JointState,
+                                                self.callback_JointState)
+        self.sub_joint_commands = rospy.Subscriber("/rx200/joint/commands",
+                                                   JointCommands,
+                                                   self.callback_JointCommands)
+        self.sub_single_command = rospy.Subscriber(
+            "/rx200/single_joint/command", SingleCommand,
+            self.callback_SingleCommand)
+        self.sub_gripper_command = rospy.Subscriber(
+            "/rx200/gripper/command", Float64, self.callback_GripperCommand)
         # publishers
-        self.pub_gazebo_arm_commands = rospy.Publisher("/rx200/arm_controller/command", JointTrajectory, queue_size=100) 
-        self.pub_gazebo_gripper_commands = rospy.Publisher("/rx200/gripper_controller/command", JointTrajectory, queue_size=100)
+        self.pub_gazebo_arm_commands = rospy.Publisher(
+            "/rx200/arm_controller/command", JointTrajectory, queue_size=100)
+        self.pub_gazebo_gripper_commands = rospy.Publisher(
+            "/rx200/gripper_controller/command",
+            JointTrajectory,
+            queue_size=100)
 
     def info_from_urdf(self, robotURDF):
         idx = 0
         gripper_limit_established = False
         for joint in robotURDF.joints:
-            if(joint.type != "fixed"):
-                if("finger" in joint.name):
-                    if(self.use_gripper and not gripper_limit_established):
+            if (joint.type != "fixed"):
+                if ("finger" in joint.name):
+                    if (self.use_gripper and not gripper_limit_established):
                         self.lower_gripper_limit = joint.limit.lower
                         self.upper_gripper_limit = joint.limit.upper
                         gripper_limit_established = True
@@ -87,7 +111,7 @@ class GazeboShim(object):
                         "Profile_Velocity": 2000})
 
         self.num_single_joints = len(self.joint_names)
-        self.num_joints = self.num_single_joints - 1 # removing one because gripper
+        self.num_joints = self.num_single_joints - 1  # removing one because gripper
 
     def get_robot_info(self, req):
         # Multiple types of robot information are provided, including:
@@ -134,7 +158,7 @@ class GazeboShim(object):
 
         if req.cmd is req.ARM_JOINTS:
             for i in range(len(self.joint_names)):
-                if(self.joint_names[i] is not "gripper"):
+                if (self.joint_names[i] is not "gripper"):
                     addr_name = req.addr_name
                     self.motor_register_mock[i][addr_name] = req.value
 
@@ -177,11 +201,12 @@ class GazeboShim(object):
         toReturn = JointTrajectory()
 
         for i in range(len(self.joint_names)):
-            if(not ("gripper" in self.joint_names[i])):
+            if (not ("gripper" in self.joint_names[i])):
                 toReturn.joint_names.append(self.joint_names[i])
 
         trajPoint = JointTrajectoryPoint()
-        trajPoint.time_from_start = rospy.Duration.from_sec(profile_accel / 1000.0)
+        trajPoint.time_from_start = rospy.Duration.from_sec(profile_accel /
+                                                            1000.0)
         trajPoint.positions = joint_cmds
 
         toReturn.points = [trajPoint]
@@ -197,11 +222,15 @@ class GazeboShim(object):
 
         trajPoint = JointTrajectoryPoint()
         trajPoint.time_from_start = rospy.Duration.from_sec(1.0)
-        if(cmd.data > 0):
-            self.gripper_pos_cmd = [-1 * self.upper_gripper_limit, self.upper_gripper_limit]
-        elif(cmd.data < 0):
-            self.gripper_pos_cmd = [-1 * self.lower_gripper_limit, self.lower_gripper_limit]
-        
+        if (cmd.data > 0):
+            self.gripper_pos_cmd = [
+                -1 * self.upper_gripper_limit, self.upper_gripper_limit
+            ]
+        elif (cmd.data < 0):
+            self.gripper_pos_cmd = [
+                -1 * self.lower_gripper_limit, self.lower_gripper_limit
+            ]
+
         trajPoint.positions = self.gripper_pos_cmd
         trajPoint.effort = [-cmd.data * 1000, cmd.data * 1000]
 
@@ -210,7 +239,6 @@ class GazeboShim(object):
         print(toReturn)
 
         return toReturn
-
 
     def callback_JointCommands(self, data):
         print("received JointCommands")
@@ -226,8 +254,10 @@ class GazeboShim(object):
     def callback_GripperCommand(self, data):
         print("received GripperCommand")
         print(data)
-        self.pub_gazebo_gripper_commands.publish(self.generateGripperTrajectory(data))
+        self.pub_gazebo_gripper_commands.publish(
+            self.generateGripperTrajectory(data))
         pass
+
 
 class Block(object):
     def __init__(self, sdf_contents, pose_t, pose_euler):
@@ -240,15 +270,18 @@ class Block(object):
         block_pose.position.x = self.pose_t[0]
         block_pose.position.y = self.pose_t[1]
         block_pose.position.z = self.pose_t[2]
-        quat = euler_to_quaternion(self.pose_euler[0], self.pose_euler[1], self.pose_euler[2])
+        quat = euler_to_quaternion(self.pose_euler[0], self.pose_euler[1],
+                                   self.pose_euler[2])
         block_pose.orientation.x = quat[0]
         block_pose.orientation.y = quat[1]
         block_pose.orientation.z = quat[2]
         block_pose.orientation.w = quat[3]
-        model_spawner("block_" + str(idx), self.sdf_data, "block_" + str(idx), block_pose, "world")
+        model_spawner("block_" + str(idx), self.sdf_data, "block_" + str(idx),
+                      block_pose, "world")
+
 
 class BlockSpawner(object):
-    def __init__(self, config = None, num_random_blocks = 0):
+    def __init__(self, config=None, num_random_blocks=0):
         self.baseBlockSdf = "./URDFs/block_red.sdf"
         self.colorDict = {\
             "red" : "1 0 0 1",\
@@ -268,17 +301,25 @@ class BlockSpawner(object):
                 sdf_contents = open(self.baseBlockSdf, 'r').read()
                 block_color = blockConfig["color"]
                 replace_color = self.colorDict[block_color]
-                sdf_contents = sdf_contents.replace(">1 0 0 1<", ">" + replace_color + "<")
-                block = Block(sdf_contents, blockConfig["pose_t"], blockConfig["pose_euler"])
+                sdf_contents = sdf_contents.replace(">1 0 0 1<",
+                                                    ">" + replace_color + "<")
+                block = Block(sdf_contents, blockConfig["pose_t"],
+                              blockConfig["pose_euler"])
                 self.blocks.append(block)
 
         for i in range(num_random_blocks):
             sdf_contents = open(self.baseBlockSdf, 'r').read()
-            sdf_contents = sdf_contents.replace(">1 0 0 1<", ">" + random.choice(list(self.colorDict.values())) + "<")
+            sdf_contents = sdf_contents.replace(
+                ">1 0 0 1<",
+                ">" + random.choice(list(self.colorDict.values())) + "<")
             pose_t = [random.uniform(0.1, 0.3) * random.choice([-1, 1]),\
                  random.uniform(0.1, 0.3) * random.choice([-1, 1]),\
                       random.uniform(0.1, 0.3)]
-            pose_e = [random.uniform(-np.pi, np.pi), random.uniform(-np.pi, np.pi), random.uniform(-np.pi, np.pi)]
+            pose_e = [
+                random.uniform(-np.pi, np.pi),
+                random.uniform(-np.pi, np.pi),
+                random.uniform(-np.pi, np.pi)
+            ]
             block = Block(sdf_contents, pose_t, pose_e)
             self.blocks.append(block)
 
@@ -287,26 +328,31 @@ class BlockSpawner(object):
         for block in self.blocks:
             block.spawn(model_spawner, i)
             i = i + 1
-            
+
 
 # shamelessly taken from https://stackoverflow.com/questions/53033620/how-to-convert-euler-angles-to-quaternions-and-get-the-same-euler-angles-back-fr
 def euler_to_quaternion(yaw, pitch, roll):
 
-    qx = np.sin(roll/2) * np.cos(pitch/2) * np.cos(yaw/2) - np.cos(roll/2) * np.sin(pitch/2) * np.sin(yaw/2)
-    qy = np.cos(roll/2) * np.sin(pitch/2) * np.cos(yaw/2) + np.sin(roll/2) * np.cos(pitch/2) * np.sin(yaw/2)
-    qz = np.cos(roll/2) * np.cos(pitch/2) * np.sin(yaw/2) - np.sin(roll/2) * np.sin(pitch/2) * np.cos(yaw/2)
-    qw = np.cos(roll/2) * np.cos(pitch/2) * np.cos(yaw/2) + np.sin(roll/2) * np.sin(pitch/2) * np.sin(yaw/2)
+    qx = np.sin(roll / 2) * np.cos(pitch / 2) * np.cos(yaw / 2) - np.cos(
+        roll / 2) * np.sin(pitch / 2) * np.sin(yaw / 2)
+    qy = np.cos(roll / 2) * np.sin(pitch / 2) * np.cos(yaw / 2) + np.sin(
+        roll / 2) * np.cos(pitch / 2) * np.sin(yaw / 2)
+    qz = np.cos(roll / 2) * np.cos(pitch / 2) * np.sin(yaw / 2) - np.sin(
+        roll / 2) * np.sin(pitch / 2) * np.cos(yaw / 2)
+    qw = np.cos(roll / 2) * np.cos(pitch / 2) * np.cos(yaw / 2) + np.sin(
+        roll / 2) * np.sin(pitch / 2) * np.sin(yaw / 2)
 
     return [qx, qy, qz, qw]
 
+
 if __name__ == '__main__':
     shim = GazeboShim()
-    
+
     realsense_pose = Pose()
     realsense_pose.position.x = 0
     realsense_pose.position.y = 0
     realsense_pose.position.z = 1.0
-    quat = euler_to_quaternion(0.0, 3.1415/2, 0.0)
+    quat = euler_to_quaternion(0.0, 3.1415 / 2, 0.0)
     realsense_pose.orientation.x = quat[0]
     realsense_pose.orientation.y = quat[1]
     realsense_pose.orientation.z = quat[2]
@@ -316,7 +362,7 @@ if __name__ == '__main__':
     light_pose.position.x = 0
     light_pose.position.y = 0
     light_pose.position.z = 1.2
-    quat = euler_to_quaternion(0.0, 3.1415/2, 0.0)
+    quat = euler_to_quaternion(0.0, 3.1415 / 2, 0.0)
     light_pose.orientation.x = quat[0]
     light_pose.orientation.y = quat[1]
     light_pose.orientation.z = quat[2]
@@ -327,7 +373,7 @@ if __name__ == '__main__':
     board_pose.position.x = 0.321 + 0.305
     board_pose.position.y = -0.286 - 0.305
     board_pose.position.z = -0.019
-    quat = euler_to_quaternion(3.1415/2, 0.0, 0.0)
+    quat = euler_to_quaternion(3.1415 / 2, 0.0, 0.0)
     board_pose.orientation.x = quat[0]
     board_pose.orientation.y = quat[1]
     board_pose.orientation.z = quat[2]
@@ -338,7 +384,7 @@ if __name__ == '__main__':
     tag_pose.position.x = -0.1425
     tag_pose.position.y = 0.0
     tag_pose.position.z = 0.038
-    quat = euler_to_quaternion(-3.1415/2, 3.1415, 0.0)
+    quat = euler_to_quaternion(-3.1415 / 2, 3.1415, 0.0)
     tag_pose.orientation.x = quat[0]
     tag_pose.orientation.y = quat[1]
     tag_pose.orientation.z = quat[2]
@@ -346,31 +392,35 @@ if __name__ == '__main__':
 
     print("waiting on spawn_sdf_model service....")
     rospy.wait_for_service("gazebo/spawn_sdf_model")
-    spawn_model_proxy = rospy.ServiceProxy("gazebo/spawn_sdf_model", SpawnModel)
-    
+    spawn_model_proxy = rospy.ServiceProxy("gazebo/spawn_sdf_model",
+                                           SpawnModel)
 
     print("loading realsense model")
-    f = open("./gazebo_shim_deps/gazebo-realsense/models/realsense_camera/model.sdf","r")
+    f = open(
+        "./gazebo_shim_deps/gazebo-realsense/models/realsense_camera/model.sdf",
+        "r")
     sdff = f.read()
     # perhaps less than ideal way of turning off gravity
     sdff = sdff.replace("<gravity>1", "<gravity>0")
     print("calling spawn_sdf_model service for realsense")
-    spawn_model_proxy("realsense_cam", sdff, "realsense_ns", realsense_pose, "world")
+    spawn_model_proxy("realsense_cam", sdff, "realsense_ns", realsense_pose,
+                      "world")
 
     print("loading light model")
-    f = open("./URDFs/overhead_light.sdf","r")
+    f = open("./URDFs/overhead_light.sdf", "r")
     sdff = f.read()
     print("calling spawn_sdf_model service for light")
-    spawn_model_proxy("overhead_light", sdff, "overhead_light", light_pose, "world")
+    spawn_model_proxy("overhead_light", sdff, "overhead_light", light_pose,
+                      "world")
 
     print("loading board model")
-    f = open("./URDFs/550board.sdf","r")
+    f = open("./URDFs/550board.sdf", "r")
     sdff = f.read()
     print("calling spawn_sdf_model service for board")
     spawn_model_proxy("550board", sdff, "550_board", board_pose, "world")
 
     print("loading final apriltag model")
-    f = open("./URDFs/robot_tag.sdf","r")
+    f = open("./URDFs/robot_tag.sdf", "r")
     sdff = f.read()
     print("calling spawn_sdf_model service for tag")
     spawn_model_proxy("robotApril", sdff, "robot_april", tag_pose, "world")

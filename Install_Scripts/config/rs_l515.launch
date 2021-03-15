@@ -18,7 +18,7 @@
 
   <arg name="infra_width"        default="640"/>
   <arg name="infra_height"       default="480"/>
-  <arg name="enable_infra"        default="true"/>
+  <arg name="enable_infra"        default="false"/>
   <arg name="enable_infra1"       default="false"/>
   <arg name="enable_infra2"       default="false"/>
 
@@ -30,8 +30,8 @@
   <arg name="depth_fps"           default="30"/>
   <arg name="infra_fps"           default="30"/>
   <arg name="color_fps"           default="30"/>
-  <arg name="gyro_fps"            default="400"/>
-  <arg name="accel_fps"           default="250"/>
+  <arg name="gyro_fps"            default="100"/>
+  <arg name="accel_fps"           default="100"/>
   <arg name="enable_gyro"         default="false"/>
   <arg name="enable_accel"        default="false"/>
 
@@ -45,7 +45,7 @@
   <arg name="publish_tf"                default="true"/>
   <arg name="tf_publish_rate"           default="0"/>
 
-  <arg name="filters"                   default="temporal,spatial"/>
+  <arg name="filters"                   default="temporal"/>
   <arg name="clip_distance"             default="-2"/>
   <arg name="linear_accel_cov"          default="0.01"/>
   <arg name="initial_reset"             default="false"/>

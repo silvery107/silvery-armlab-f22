@@ -23,14 +23,13 @@ from interbotix_descriptions import interbotix_mr_descriptions as mrd
 from config_parse import *
 from sensor_msgs.msg import JointState
 import rospy
-
 """
 TODO: Implement the missing functions and add anything you need to support them
 """
-
 """ Radians to/from  Degrees conversions """
 D2R = np.pi / 180.0
 R2D = 180.0 / np.pi
+
 
 def _ensure_initialized(func):
     """!
@@ -45,7 +44,9 @@ def _ensure_initialized(func):
             return func(self, *args, **kwargs)
         else:
             print('WARNING: Trying to use the RXArm before initialized')
+
     return func_out
+
 
 class RXArm(InterbotixRobot):
     """!
@@ -61,7 +62,7 @@ class RXArm(InterbotixRobot):
         @param      dh_config_file  The configuration file that defines the DH parameters for the robot
         """
         super().__init__(robot_name="rx200", mrd=mrd)
-        self.joint_names =  self.resp.joint_names
+        self.joint_names = self.resp.joint_names
         self.num_joints = 5
         # Gripper
         self.gripper_state = True
@@ -78,7 +79,7 @@ class RXArm(InterbotixRobot):
         # DH Params
         self.dh_params = []
         self.dh_config_file = dh_config_file
-        if(dh_config_file is not None):
+        if (dh_config_file is not None):
             self.dh_params = RXArm.parse_dh_param_file(dh_config_file)
         #POX params
         self.M_matrix = []
@@ -95,14 +96,12 @@ class RXArm(InterbotixRobot):
         self.initialized = False
         # Wait for other threads to finish with the RXArm instead of locking every single call
         rospy.sleep(0.25)
-        
         """ Commanded Values """
-        self.position = [0.0] * self.num_joints         # radians
-
+        self.position = [0.0] * self.num_joints  # radians
         """ Feedback Values """
-        self.position_fb = [0.0] * self.num_joints      # radians
-        self.velocity_fb = [0.0] * self.num_joints      # 0 to 1 ???
-        self.effort_fb = [0.0] * self.num_joints        # -1 to 1
+        self.position_fb = [0.0] * self.num_joints  # radians
+        self.velocity_fb = [0.0] * self.num_joints  # 0 to 1 ???
+        self.effort_fb = [0.0] * self.num_joints  # -1 to 1
 
         # Reset estop and initialized
         self.estop = False
@@ -110,7 +109,9 @@ class RXArm(InterbotixRobot):
         self.moving_time = 2.0
         self.accel_time = 0.5
         self.set_gripper_pressure(1.0)
-        self.go_to_home_pose(moving_time = self.moving_time, accel_time = self.accel_time, blocking=False)
+        self.go_to_home_pose(moving_time=self.moving_time,
+                             accel_time=self.accel_time,
+                             blocking=False)
         self.open_gripper()
         self.initialized = True
         return self.initialized
@@ -118,9 +119,12 @@ class RXArm(InterbotixRobot):
     def sleep(self):
         self.moving_time = 2.0
         self.accel_time = 1.0
-        self.go_to_home_pose(moving_time = self.moving_time, accel_time = self.accel_time)
-        self.go_to_sleep_pose(moving_time = self.moving_time, accel_time = self.accel_time)
-        self.disable_torque()
+        self.go_to_home_pose(moving_time=self.moving_time,
+                             accel_time=self.accel_time,
+                             blocking=True)
+        self.go_to_sleep_pose(moving_time=self.moving_time,
+                              accel_time=self.accel_time,
+                              blocking=False)
         self.initialized = False
 
     def set_positions(self, joint_positions):
@@ -129,7 +133,10 @@ class RXArm(InterbotixRobot):
 
          @param      joint_angles  The joint angles
          """
-        self.set_joint_positions(joint_positions, moving_time=self.moving_time, accel_time=self.accel_time, blocking=False)
+        self.set_joint_positions(joint_positions,
+                                 moving_time=self.moving_time,
+                                 accel_time=self.accel_time,
+                                 blocking=False)
 
     def set_moving_time(self, moving_time):
         self.moving_time = moving_time
@@ -173,7 +180,9 @@ class RXArm(InterbotixRobot):
         """
         return self.effort_fb
 
+
 #   @_ensure_initialized
+
     def get_ee_pose(self):
         """!
         @brief      TODO Get the EE pose.
@@ -242,7 +251,7 @@ class RXArmThread(QThread):
         self.updateEndEffectorReadout.emit(self.rxarm.get_ee_pose())
         #for name in self.rxarm.joint_names:
         #    print("{0} gains: {1}".format(name, self.rxarm.get_motor_pid_params(name)))
-        if(__name__=='__main__'):
+        if (__name__ == '__main__'):
             print(self.rxarm.position_fb)
 
     def run(self):
@@ -250,25 +259,29 @@ class RXArmThread(QThread):
         @brief      Updates the RXArm Joints at a set rate if the RXArm is initialized.
         """
         while True:
-              
+
             rospy.spin()
 
-if __name__=='__main__':
+
+if __name__ == '__main__':
     rxarm = RXArm()
     print(rxarm.joint_names)
     armThread = RXArmThread(rxarm)
     armThread.start()
     try:
-        joint_positions = [-1.0, 0.5 , 0.5, 0, 1.57]
+        joint_positions = [-1.0, 0.5, 0.5, 0, 1.57]
         rxarm.initialize()
-       
+
         rxarm.go_to_home_pose()
         rxarm.set_gripper_pressure(0.5)
-        rxarm.set_joint_positions(joint_positions, moving_time=2.0, accel_time=0.5, blocking=True)
+        rxarm.set_joint_positions(joint_positions,
+                                  moving_time=2.0,
+                                  accel_time=0.5,
+                                  blocking=True)
         rxarm.close_gripper()
         rxarm.go_to_home_pose()
         rxarm.open_gripper()
         rxarm.sleep()
 
     except KeyboardInterrupt:
-      print("Shutting down")
+        print("Shutting down")

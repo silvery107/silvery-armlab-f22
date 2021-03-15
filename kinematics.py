@@ -9,6 +9,7 @@ import numpy as np
 # expm is a matrix exponential function
 from scipy.linalg import expm
 
+
 def clamp(angle):
     """!
     @brief      Clamp angles between (-pi, pi]
@@ -22,6 +23,7 @@ def clamp(angle):
     while angle <= -np.pi:
         angle += 2 * np.pi
     return angle
+
 
 def FK_dh(dh_params, joint_angles, link):
     """!
@@ -44,6 +46,7 @@ def FK_dh(dh_params, joint_angles, link):
     """
     pass
 
+
 def get_transform_from_dh(a, alpha, d, theta):
     """!
     @brief      Gets the transformation matrix from dh parameters.
@@ -59,6 +62,7 @@ def get_transform_from_dh(a, alpha, d, theta):
     """
     pass
 
+
 def get_euler_angles_from_T(T):
     """!
     @brief      Gets the euler angles from a transformation matrix.
@@ -70,6 +74,7 @@ def get_euler_angles_from_T(T):
     @return     The euler angles from T.
     """
     pass
+
 
 def get_pose_from_T(T):
     """!
@@ -101,7 +106,8 @@ def FK_pox(joint_angles, m_mat, s_lst):
     """
     pass
 
-def to_s_matrix(w,v):
+
+def to_s_matrix(w, v):
     """!
     @brief      Convert to s matrix.
 
@@ -114,6 +120,7 @@ def to_s_matrix(w,v):
     @return     { description_of_the_return_value }
     """
     pass
+
 
 def IK_geometric(dh_params, pose):
     """!
