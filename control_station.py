@@ -145,7 +145,7 @@ class Gui(QMainWindow):
         #self.ui.rdoutTheta.setText(str("%+.2f" % (pos[4])))
         #self.ui.rdoutPsi.setText(str("%+.2f" % (pos[5])))
 
-    @pyqtfalsefalseSlot(QImage, QImage, QImage)
+    @pyqtSlot(QImage, QImage, QImage)
     def setImage(self, rgb_image, depth_image, tag_image):
         """!
         @brief      Display the images from the camera.
