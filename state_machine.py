@@ -142,15 +142,16 @@ class StateMachine():
                 self.camera.new_click = False
             else:
                 rospy.sleep(0.5)
-        imagePoints = np.array(imagePoints)
+        imagePoints = np.asarray(imagePoints, dtype=np.float32)
         print(imagePoints)
-        objectPoints = np.zeros((4, 3))
+        objectPoints = np.zeros((4, 3), dtype=np.float32)
         for detection in self.camera.tag_detections.detections:
             objectPoints[detection.id[0] - 1][0] = detection.pose.pose.pose.position.x
             objectPoints[detection.id[0] - 1][1] = detection.pose.pose.pose.position.y
             objectPoints[detection.id[0] - 1][2] = detection.pose.pose.pose.position.z
         print(objectPoints)
-        retval, rvec, tvec = cv2.solvePnP(objectPoints, imagePoints, self.camera.intrinsic_matrix, np.array([0.133368, -0.257414, 0.006486, 0.001211, 0.000000]))
+        distCoeffs = np.array([0.133368, -0.257414, 0.006486, 0.001211, 0.000000], dtype=np.float32)
+        retval, rvec, tvec = cv2.solvePnP(objectPoints, imagePoints, self.camera.intrinsic_matrix, distCoeffs)
         print(retval)
         print(rvec)
         print(tvec)
