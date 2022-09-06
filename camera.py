@@ -144,11 +144,11 @@ class Camera():
         """
         self.intrinsic_matrix = np.array([925.27515, 0.0, 653.75928, 
                                           0.0, 938.70001, 367.99236, 
-                                          0.0, 0.0, 1.0]).reshape((3, 3))
+                                          0.0, 0.0, 1.0], dtype=np.float32).reshape((3, 3))
         self.extrinsic_matrix_inv = np.array([1,0,0,-20,
                                           0, -1, 0, 211,
                                           0, 0, -1, 974,
-                                          0, 0, 0, 1]).reshape((4, 4))
+                                          0, 0, 0, 1], dtype=np.float32).reshape((4, 4))
         self.extrinsic_matrix = np.linalg.pinv(self.extrinsic_matrix_inv)
 
     def blockDetector(self):
