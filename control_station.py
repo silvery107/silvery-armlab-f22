@@ -60,6 +60,7 @@ class Gui(QMainWindow):
         ]
         """Objects Using Other Classes"""
         self.camera = Camera()
+        self.camera.loadCameraCalibration()
         print("Creating rx arm...")
         if (dh_config_file is not None):
             self.rxarm = RXArm(dh_config_file=dh_config_file)
@@ -222,7 +223,13 @@ class Gui(QMainWindow):
             z = self.camera.DepthFrameRaw[pt.y()][pt.x()]
             self.ui.rdoutMousePixels.setText("(%.0f,%.0f,%.0f)" %
                                              (pt.x(), pt.y(), z))
-            self.ui.rdoutMouseWorld.setText("(-,-,-)")
+            index = np.array([pt.x(), pt.y(), 1]).reshape((3,1))
+            pos_camera = z * np.matmul(np.linalg.pinv(self.camera.intrinsic_matrix), index)
+            temp_pos = np.array([pos_camera[0][0], pos_camera[1][0], pos_camera[2][0], 1]).reshape((4,1))
+            world_pos = np.matmul(self.camera.extrinsic_matrix_inv, temp_pos)
+            # self.ui.rdoutMouseWorld.setText("(-,-,-)")
+            self.ui.rdoutMouseWorld.setText("(%.0f,%.0f,%.0f)" %
+                                             (world_pos[0], world_pos[1], world_pos[2]))
 
     def calibrateMousePress(self, mouse_event):
         """!
@@ -235,7 +242,7 @@ class Gui(QMainWindow):
         self.camera.last_click[0] = pt.x()
         self.camera.last_click[1] = pt.y()
         self.camera.new_click = True
-        # print(self.camera.last_click)
+        print(self.camera.last_click)
 
     def initRxarm(self):
         """!

@@ -134,7 +134,7 @@ class Camera():
         print(cv2.getAffineTransform(pts1, pts2))
         return cv2.getAffineTransform(pts1, pts2)
 
-    def loadCameraCalibration(self, file):
+    def loadCameraCalibration(self, file=None):
         """!
         @brief      Load camera intrinsic matrix from file.
 
@@ -142,7 +142,14 @@ class Camera():
 
         @param      file  The file
         """
-        pass
+        self.intrinsic_matrix = np.array([925.27515, 0.0, 653.75928, 
+                                          0.0, 938.70001, 367.99236, 
+                                          0.0, 0.0, 1.0]).reshape((3, 3))
+        self.extrinsic_matrix_inv = np.array([1,0,0,-20,
+                                          0, -1, 0, 211,
+                                          0, 0, -1, 974,
+                                          0, 0, 0, 1]).reshape((4, 4))
+        self.extrinsic_matrix = np.linalg.pinv(self.extrinsic_matrix_inv)
 
     def blockDetector(self):
         """!
@@ -203,9 +210,9 @@ class TagDetectionListener:
 
     def callback(self, data):
         self.camera.tag_detections = data
-        #for detection in data.detections:
-        #print(detection.id[0])
-        #print(detection.pose.pose.pose.position)
+        # for detection in data.detections:
+        #     print(detection.id[0], type(detection.id[0]))
+        #     print(detection.pose.pose.pose.position)
 
 
 class CameraInfoListener:

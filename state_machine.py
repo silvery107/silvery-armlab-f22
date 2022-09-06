@@ -5,6 +5,7 @@ from PyQt4.QtCore import (QThread, Qt, pyqtSignal, pyqtSlot, QTimer)
 import time
 import numpy as np
 import rospy
+import cv2
 
 class StateMachine():
     """!
@@ -37,6 +38,8 @@ class StateMachine():
             [0.75*np.pi/2,   -0.5,     -0.3,     0.0,       np.pi/2],
             [np.pi/2,         0.5,     0.3,      0.0,     0.0],
             [0.0,             0.0,     0.0,      0.0,     0.0]]
+        
+        self.world_pos = np.empty((3,3))
 
     def set_next_state(self, state):
         """!
@@ -109,17 +112,51 @@ class StateMachine():
               Make sure you respect estop signal
         """
         self.status_message = "State: Execute - Executing motion plan"
-        self.next_state = "idle"
+        self.current_state = "execute"
+        
+        self.rxarm.estop = False
+        self.rxarm.enable_torque()
+        for point in self.waypoints:
+            self.rxarm.set_positions(point)
+            rospy.sleep(2)
+            if self.next_state == "estop":
+                break
+        if not self.next_state == "estop":
+            self.next_state = "idle"
 
     def calibrate(self):
         """!
         @brief      Gets the user input to perform the calibration
         """
         self.current_state = "calibrate"
-        self.next_state = "idle"
 
         """TODO Perform camera calibration routine here"""
         self.status_message = "Calibration - Completed Calibration"
+        print("start camera calibration: please click four points")
+        imagePoints = []
+        click_n = 0
+        while click_n < 4:
+            if self.camera.new_click:
+                click_n = click_n + 1
+                imagePoints.append([self.camera.last_click[0], self.camera.last_click[1]])
+                self.camera.new_click = False
+            else:
+                rospy.sleep(0.5)
+        imagePoints = np.array(imagePoints)
+        print(imagePoints)
+        objectPoints = np.zeros((4, 3))
+        for detection in self.camera.tag_detections.detections:
+            objectPoints[detection.id[0] - 1][0] = detection.pose.pose.pose.position.x
+            objectPoints[detection.id[0] - 1][1] = detection.pose.pose.pose.position.y
+            objectPoints[detection.id[0] - 1][2] = detection.pose.pose.pose.position.z
+        print(objectPoints)
+        retval, rvec, tvec = cv2.solvePnP(objectPoints, imagePoints, self.camera.intrinsic_matrix, np.array([0.133368, -0.257414, 0.006486, 0.001211, 0.000000]))
+        print(retval)
+        print(rvec)
+        print(tvec)
+        
+        self.next_state = "idle"
+        
 
     """ TODO """
     def detect(self):
