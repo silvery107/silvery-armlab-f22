@@ -155,7 +155,13 @@ class StateMachine():
         print(retval)
         print(rvec)
         print(tvec)
-        
+
+        # rmat = cv2.Rodrigues(rvec) # 3x3
+        # extrinsic_temp = np.column_stack((rmat, tvec)) # 3x4
+        # extrinsic_pad = np.array([0, 0, 0, 1], dtype=np.float32) # 4,
+        # self.camera.extrinsic_matrix = np.row_stack((extrinsic_temp, extrinsic_pad)) # 4x4
+        # self.camera.extrinsic_matrix_inv = np.linalg.pinv(self.camera.extrinsic_matrix)
+
         self.next_state = "idle"
         
 
