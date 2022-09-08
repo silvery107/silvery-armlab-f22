@@ -224,7 +224,7 @@ class Gui(QMainWindow):
             self.ui.rdoutMousePixels.setText("(%.0f,%.0f,%.0f)" %
                                              (pt.x(), pt.y(), z))
             index = np.array([pt.x(), pt.y(), 1]).reshape((3,1))
-            pos_camera = z * np.matmul(np.linalg.pinv(self.camera.intrinsic_matrix), index)
+            pos_camera = z * np.matmul(self.camera.intrinsic_matrix_inv, index)
             temp_pos = np.array([pos_camera[0][0], pos_camera[1][0], pos_camera[2][0], 1]).reshape((4,1))
             world_pos = np.matmul(self.camera.extrinsic_matrix_inv, temp_pos)
             # self.ui.rdoutMouseWorld.setText("(-,-,-)")
