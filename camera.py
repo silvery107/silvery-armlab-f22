@@ -15,6 +15,8 @@ from sensor_msgs.msg import CameraInfo
 from apriltag_ros.msg import *
 from cv_bridge import CvBridge, CvBridgeError
 
+import yaml # pip install pyyaml
+
 
 class Camera():
     """!
@@ -35,6 +37,7 @@ class Camera():
         self.cameraCalibrated = False
         self.intrinsic_matrix = np.array([])
         self.extrinsic_matrix = np.array([])
+        self.distortion_coefficients = np.array([])
         self.last_click = np.array([0, 0])
         self.new_click = False
         self.rgb_click_points = np.zeros((5, 2), int)
@@ -142,6 +145,7 @@ class Camera():
 
         @param      file  The file
         """
+        data = None
         self.intrinsic_matrix = np.array([925.27515, 0.0, 653.75928, 
                                           0.0, 938.70001, 367.99236, 
                                           0.0, 0.0, 1.0], dtype=np.float32).reshape((3, 3))
@@ -152,6 +156,15 @@ class Camera():
                                              0, 0, -1, 974,
                                              0, 0, 0, 1], dtype=np.float32).reshape((4, 4))
         self.extrinsic_matrix = np.linalg.pinv(self.extrinsic_matrix_inv)
+
+        if file is not None:
+            with open(file, "r") as stream:
+                data = yaml.safe_load(stream)
+            assert (data is not None)
+            self.intrinsic_matrix = np.asarray(data.camera_matrix.data, 
+                dtype=np.float32).reshape((data.camera_matrix.rows, data.camera_matrix.cols))
+            self.distortion_coefficients = np.asarray(data.distortion_coefficients, 
+                dtype=np.float32).reshape((data.distortion_coefficients.rows, data.distortion_coefficients.cols))
 
     def blockDetector(self):
         """!
