@@ -150,8 +150,8 @@ class StateMachine():
             objectPoints[detection.id[0] - 1][1] = detection.pose.pose.pose.position.y
             objectPoints[detection.id[0] - 1][2] = detection.pose.pose.pose.position.z
         print(objectPoints)
-        distCoeffs = np.array([0.133368, -0.257414, 0.006486, 0.001211, 0.000000], dtype=np.float32)
-        retval, rvec, tvec = cv2.solvePnP(objectPoints, imagePoints, self.camera.intrinsic_matrix, distCoeffs)
+        self.camera.distortion_coefficients = np.array([0.133368, -0.257414, 0.006486, 0.001211, 0.000000], dtype=np.float32)
+        retval, rvec, tvec = cv2.solvePnP(objectPoints, imagePoints, self.camera.intrinsic_matrix, self.camera.distortion_coefficients)
         print(retval)
         print(rvec)
         print(tvec)
@@ -161,7 +161,8 @@ class StateMachine():
         # extrinsic_pad = np.array([0, 0, 0, 1], dtype=np.float32) # 4,
         # self.camera.extrinsic_matrix = np.row_stack((extrinsic_temp, extrinsic_pad)) # 4x4
         # self.camera.extrinsic_matrix_inv = np.linalg.pinv(self.camera.extrinsic_matrix)
-
+        # self.camera.cameraCalibrated = True
+        
         self.next_state = "idle"
         
 
