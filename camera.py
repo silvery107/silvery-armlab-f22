@@ -161,10 +161,9 @@ class Camera():
             with open(file, "r") as stream:
                 data = yaml.safe_load(stream)
             assert (data is not None)
-            self.intrinsic_matrix = np.asarray(data.camera_matrix.data, 
-                dtype=np.float32).reshape((data.camera_matrix.rows, data.camera_matrix.cols))
-            self.distortion_coefficients = np.asarray(data.distortion_coefficients, 
-                dtype=np.float32).reshape((data.distortion_coefficients.rows, data.distortion_coefficients.cols))
+            # print(type(data["camera_matrix"]["data"]))
+            self.intrinsic_matrix = np.asarray(data["camera_matrix"]["data"], dtype=np.float32).reshape((3, 3))
+            self.distortion_coefficients = np.asarray(data["distortion_coefficients"]["data"], dtype=np.float32).reshape((1, 5))
 
     def blockDetector(self):
         """!
@@ -198,7 +197,7 @@ class ImageListener:
         except CvBridgeError as e:
             print(e)
         self.camera.VideoFrame = cv_image
-
+        
 
 class TagImageListener:
     def __init__(self, topic, camera):
