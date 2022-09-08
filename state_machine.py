@@ -38,6 +38,9 @@ class StateMachine():
             [0.75*np.pi/2,   -0.5,     -0.3,     0.0,       np.pi/2],
             [np.pi/2,         0.5,     0.3,      0.0,     0.0],
             [0.0,             0.0,     0.0,      0.0,     0.0]]
+        self.record_waypoints = []
+        self.record_gripper = []
+        self.waypoint_played = False
         
         self.world_pos = np.empty((3,3))
 
@@ -79,6 +82,12 @@ class StateMachine():
 
         if self.next_state == "manual":
             self.manual()
+
+        if self.next_state == "record":
+            self.record()
+
+        if self.next_state == "play":
+            self.play()
 
 
     """Functions run for each state"""
@@ -123,6 +132,39 @@ class StateMachine():
                 break
         if not self.next_state == "estop":
             self.next_state = "idle"
+    
+    def record(self):
+        self.status_message = "State: Record - Recording waypoints"
+        self.current_state = "record"
+        if self.waypoint_played:
+            self.record_waypoints = []
+            self.record_gripper = []
+            self.waypoint_played = False
+        self.record_waypoints.append(self.rxarm.get_positions())
+        self.record_gripper.append(self.rxarm.gripper_state)
+        self.next_state = "idle"
+    
+    def play(self):
+        self.status_message = "State: Play - Executing recorded motion plan"
+        self.current_state = "play"
+        
+        self.rxarm.estop = False
+        self.rxarm.enable_torque()
+        self.waypoint_played = True
+        for point, gripper_state in zip(self.record_waypoints, self.record_gripper):
+            self.rxarm.set_positions(point)
+            rospy.sleep(1)
+            if self.next_state == "estop":
+                break
+            if gripper_state != self.rxarm.gripper_state:
+                if gripper_state:
+                    self.rxarm.open_gripper()
+                    self.rxarm.gripper_state = True
+                else:
+                    self.rxarm.close_gripper()
+                    self.rxarm.gripper_state = False
+        if not self.next_state == "estop":
+            self.next_state = "idle"
 
     def calibrate(self):
         """!
@@ -133,35 +175,37 @@ class StateMachine():
         """TODO Perform camera calibration routine here"""
         self.status_message = "Calibration - Completed Calibration"
         print("start camera calibration: please click four points")
-        imagePoints = []
-        click_n = 0
-        while click_n < 4:
-            if self.camera.new_click:
-                click_n = click_n + 1
-                imagePoints.append([self.camera.last_click[0], self.camera.last_click[1]])
-                self.camera.new_click = False
-            else:
-                rospy.sleep(0.5)
-        imagePoints = np.asarray(imagePoints, dtype=np.float32)
-        print(imagePoints)
-        objectPoints = np.zeros((4, 3), dtype=np.float32)
+        # imagePoints = []
+        # click_n = 0
+        # while click_n < 4:
+        #     if self.camera.new_click:
+        #         click_n = click_n + 1
+        #         imagePoints.append([self.camera.last_click[0], self.camera.last_click[1]])
+        #         self.camera.new_click = False
+        #     else:
+        #         rospy.sleep(0.5)
+        # imagePoints = np.asarray(imagePoints, dtype=np.float32)
+        # print(imagePoints)
+        tagPoints = np.zeros((4, 3), dtype=np.float32)
         for detection in self.camera.tag_detections.detections:
-            objectPoints[detection.id[0] - 1][0] = detection.pose.pose.pose.position.x
-            objectPoints[detection.id[0] - 1][1] = detection.pose.pose.pose.position.y
-            objectPoints[detection.id[0] - 1][2] = detection.pose.pose.pose.position.z
+            tagPoints[detection.id[0] - 1, 0] = detection.pose.pose.pose.position.x * 1000
+            tagPoints[detection.id[0] - 1, 1] = detection.pose.pose.pose.position.y * 1000
+            tagPoints[detection.id[0] - 1, 2] = detection.pose.pose.pose.position.z * 1000
+        imagePoints = np.matmul(self.camera.intrinsic_matrix, tagPoints.T).T 
+        imagePoints = imagePoints[:, 0:2] / imagePoints[:, 2].reshape((4, 1))
+        objectPoints = np.array([[-250, -25, 0], [250, -25, 0], [250, 275, 0], [-250, 275, 0]], dtype=np.float32)
+        print(tagPoints)
         print(objectPoints)
-        self.camera.distortion_coefficients = np.array([0.133368, -0.257414, 0.006486, 0.001211, 0.000000], dtype=np.float32)
-        retval, rvec, tvec = cv2.solvePnP(objectPoints, imagePoints, self.camera.intrinsic_matrix, self.camera.distortion_coefficients)
-        print(retval)
-        print(rvec)
-        print(tvec)
 
-        # rmat = cv2.Rodrigues(rvec) # 3x3
-        # extrinsic_temp = np.column_stack((rmat, tvec)) # 3x4
-        # extrinsic_pad = np.array([0, 0, 0, 1], dtype=np.float32) # 4,
-        # self.camera.extrinsic_matrix = np.row_stack((extrinsic_temp, extrinsic_pad)) # 4x4
-        # self.camera.extrinsic_matrix_inv = np.linalg.pinv(self.camera.extrinsic_matrix)
-        # self.camera.cameraCalibrated = True
+        retval, rvec, tvec = cv2.solvePnP(objectPoints, imagePoints, self.camera.intrinsic_matrix, self.camera.distortion_coefficients)
+
+        rmat, jacobian = cv2.Rodrigues(rvec) # 3x3
+        extrinsic_temp = np.column_stack((rmat, tvec)) # 3x4
+        extrinsic_pad = np.array([0, 0, 0, 1], dtype=np.float32) # 4,
+        self.camera.extrinsic_matrix = np.row_stack((extrinsic_temp, extrinsic_pad)) # 4x4
+        self.camera.extrinsic_matrix_inv = np.linalg.pinv(self.camera.extrinsic_matrix)
+        self.camera.cameraCalibrated = True
+        print(self.camera.extrinsic_matrix)
         
         self.next_state = "idle"
         

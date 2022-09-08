@@ -60,7 +60,7 @@ class Gui(QMainWindow):
         ]
         """Objects Using Other Classes"""
         self.camera = Camera()
-        self.camera.loadCameraCalibration()#"config/camera_calib.yaml")
+        self.camera.loadCameraCalibration("config/camera_calib.yaml")
         print("Creating rx arm...")
         if (dh_config_file is not None):
             self.rxarm = RXArm(dh_config_file=dh_config_file)
@@ -92,11 +92,15 @@ class Gui(QMainWindow):
         self.ui.btnUser1.setText("Calibrate")
         self.ui.btnUser1.clicked.connect(partial(nxt_if_arm_init, 'calibrate'))
         self.ui.btnUser2.setText('Open Gripper')
-        self.ui.btnUser2.clicked.connect(lambda: self.rxarm.open_gripper())
+        self.ui.btnUser2.clicked.connect(lambda: self.open_gripper())
         self.ui.btnUser3.setText('Close Gripper')
-        self.ui.btnUser3.clicked.connect(lambda: self.rxarm.close_gripper())
+        self.ui.btnUser3.clicked.connect(lambda: self.close_gripper())
         self.ui.btnUser4.setText('Execute')
         self.ui.btnUser4.clicked.connect(partial(nxt_if_arm_init, 'execute'))
+        self.ui.btnUser5.setText('Record waypoint')
+        self.ui.btnUser5.clicked.connect(partial(nxt_if_arm_init, 'record'))
+        self.ui.btnUser6.setText('Play Waypoint')
+        self.ui.btnUser6.clicked.connect(partial(nxt_if_arm_init, 'play'))
 
         # Sliders
         for sldr in self.joint_sliders:
@@ -252,6 +256,14 @@ class Gui(QMainWindow):
         self.ui.chk_directcontrol.setChecked(False)
         self.rxarm.enable_torque()
         self.sm.set_next_state('initialize_rxarm')
+    
+    def open_gripper(self):
+        self.rxarm.gripper_state = True
+        self.rxarm.open_gripper()
+    
+    def close_gripper(self):
+        self.rxarm.gripper_state = False
+        self.rxarm.close_gripper()
 
 
 ### TODO: Add ability to parse POX config file as well
