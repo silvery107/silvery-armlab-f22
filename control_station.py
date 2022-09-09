@@ -97,9 +97,9 @@ class Gui(QMainWindow):
         self.ui.btnUser3.clicked.connect(lambda: self.close_gripper())
         self.ui.btnUser4.setText('Execute')
         self.ui.btnUser4.clicked.connect(partial(nxt_if_arm_init, 'execute'))
-        self.ui.btnUser5.setText('Record waypoint')
+        self.ui.btnUser5.setText('Record Waypoint')
         self.ui.btnUser5.clicked.connect(partial(nxt_if_arm_init, 'record'))
-        self.ui.btnUser6.setText('Play Waypoint')
+        self.ui.btnUser6.setText('Play Waypoints')
         self.ui.btnUser6.clicked.connect(partial(nxt_if_arm_init, 'play'))
 
         # Sliders
