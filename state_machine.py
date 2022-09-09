@@ -153,7 +153,7 @@ class StateMachine():
         self.waypoint_played = True
         for point, gripper_state in zip(self.record_waypoints, self.record_gripper):
             self.rxarm.set_positions(point)
-            rospy.sleep(1)
+            rospy.sleep(1.5)
             if self.next_state == "estop":
                 break
             if gripper_state != self.rxarm.gripper_state:
@@ -174,7 +174,7 @@ class StateMachine():
 
         """TODO Perform camera calibration routine here"""
         self.status_message = "Calibration - Completed Calibration"
-        print("start camera calibration: please click four points")
+        # print("start camera calibration: please click four points")
         # imagePoints = []
         # click_n = 0
         # while click_n < 4:
@@ -191,10 +191,12 @@ class StateMachine():
             tagPoints[detection.id[0] - 1, 0] = detection.pose.pose.pose.position.x * 1000
             tagPoints[detection.id[0] - 1, 1] = detection.pose.pose.pose.position.y * 1000
             tagPoints[detection.id[0] - 1, 2] = detection.pose.pose.pose.position.z * 1000
+
+        # !!! Change this intrinsic_matrix to the default one in /cmaera/camera_info/K
         imagePoints = np.matmul(self.camera.intrinsic_matrix, tagPoints.T).T 
         imagePoints = imagePoints[:, 0:2] / imagePoints[:, 2].reshape((4, 1))
         objectPoints = np.array([[-250, -25, 0], [250, -25, 0], [250, 275, 0], [-250, 275, 0]], dtype=np.float32)
-        print(tagPoints)
+        print(imagePoints)
         print(objectPoints)
 
         retval, rvec, tvec = cv2.solvePnP(objectPoints, imagePoints, self.camera.intrinsic_matrix, self.camera.distortion_coefficients)
@@ -252,4 +254,4 @@ class StateMachineThread(QThread):
         while True:
             self.sm.run()
             self.updateStatusMessage.emit(self.sm.status_message)
-            rospy.sleep(0.05)
+            rospy.sleep(0.02)
