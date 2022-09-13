@@ -206,7 +206,7 @@ class Camera():
         _, contours, _ = cv2.findContours(img_depth_thr, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         self.block_contours = contours
         # cv2.drawContours(self.VideoFrame, contours, -1, (0,255,255), thickness=1)
-        block_detection_single = []
+        block_detection_pixel = []
         for contour in contours:
             color = self.retrieve_area_color(contour)
             theta = cv2.minAreaRect(contour)[2]
@@ -216,9 +216,9 @@ class Camera():
             cv2.putText(self.VideoFrame, color, (cx-30, cy+40), self.font, 1.0, (0,0,0), thickness=2)
             cv2.putText(self.VideoFrame, str(int(theta)), (cx, cy), self.font, 0.5, (255,255,255), thickness=2)
             # !!! Attention, no block height is taken into consideration for now
-            block_detection_single.append([cx, cy, 0])
+            block_detection_pixel.append(self.coor_pixel_to_world(cx, cy, 900))
         
-        self.block_detections = np.asarray(block_detection_single)
+        self.block_detections = np.asarray(block_detection_pixel)
         print(self.block_detections.shape) # nx3
         print(self.block_detections)
 
@@ -233,6 +233,12 @@ class Camera():
                 min_dist = (d, label["id"])
         return min_dist[1] 
 
+    def coor_pixel_to_world(self, u, v, z):
+        index = np.array([u, v, 1]).reshape((3,1))
+        pos_camera = z * np.matmul(self.intrinsic_matrix_inv, index)
+        temp_pos = np.array([pos_camera[0][0], pos_camera[1][0], pos_camera[2][0], 1]).reshape((4,1))
+        world_pos = np.matmul(self.extrinsic_matrix_inv, temp_pos)
+        return world_pos
 
 class ImageListener:
     def __init__(self, topic, camera):

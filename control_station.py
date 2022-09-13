@@ -227,10 +227,8 @@ class Gui(QMainWindow):
             z = self.camera.DepthFrameRaw[pt.y()][pt.x()]
             self.ui.rdoutMousePixels.setText("(%.0f,%.0f,%.0f)" %
                                              (pt.x(), pt.y(), z))
-            index = np.array([pt.x(), pt.y(), 1]).reshape((3,1))
-            pos_camera = z * np.matmul(self.camera.intrinsic_matrix_inv, index)
-            temp_pos = np.array([pos_camera[0][0], pos_camera[1][0], pos_camera[2][0], 1]).reshape((4,1))
-            world_pos = np.matmul(self.camera.extrinsic_matrix_inv, temp_pos)
+
+            world_pos = self.camera.coor_pixel_to_world(pt.x(), pt.y(), z)
             # self.ui.rdoutMouseWorld.setText("(-,-,-)")
             self.ui.rdoutMouseWorld.setText("(%.0f,%.0f,%.0f)" %
                                              (world_pos[0], world_pos[1], world_pos[2]))
