@@ -15,7 +15,9 @@ from sensor_msgs.msg import CameraInfo
 from apriltag_ros.msg import *
 from cv_bridge import CvBridge, CvBridgeError
 
-import yaml # pip install pyyaml
+import yaml
+
+from utils import DTYPE # pip install pyyaml
 
 
 class Camera():
@@ -48,13 +50,14 @@ class Camera():
         self.block_contours = np.array([])
         self.block_detections = np.array([])
         self.font = cv2.FONT_HERSHEY_SIMPLEX
+        
         self.colors = list((
-            {'id': 'red', 'color': (10, 10, 127)},
-            {'id': 'orange', 'color': (30, 75, 150)},
-            {'id': 'yellow', 'color': (30, 150, 200)},
+            {'id': 'red', 'color': (127, 10, 10)},
+            {'id': 'orange', 'color': (150, 75, 30)},
+            {'id': 'yellow', 'color': (200, 150, 30)},
             {'id': 'green', 'color': (20, 60, 20)},
-            {'id': 'blue', 'color': (100, 50, 0)},
-            {'id': 'violet', 'color': (100, 40, 80)})
+            {'id': 'blue', 'color': (0, 50, 100)},
+            {'id': 'violet', 'color': (80, 40, 100)})
         )
 
     def processVideoFrame(self):
@@ -141,8 +144,8 @@ class Camera():
 
         @return     Affine transform between coordinates.
         """
-        pts1 = coord1[0:3].astype(np.float32)
-        pts2 = coord2[0:3].astype(np.float32)
+        pts1 = coord1[0:3].astype(DTYPE)
+        pts2 = coord2[0:3].astype(DTYPE)
         print(cv2.getAffineTransform(pts1, pts2))
         return cv2.getAffineTransform(pts1, pts2)
 
@@ -159,17 +162,17 @@ class Camera():
             with open(file, "r") as stream:
                 data = yaml.safe_load(stream)
             assert (data is not None)
-            self.intrinsic_matrix = np.asarray(data["camera_matrix"]["data"], dtype=np.float32).reshape((3, 3))
-            self.distortion_coefficients = np.asarray(data["distortion_coefficients"]["data"], dtype=np.float32).reshape((1, 5))
+            self.intrinsic_matrix = np.asarray(data["camera_matrix"]["data"], dtype=DTYPE).reshape((3, 3))
+            self.distortion_coefficients = np.asarray(data["distortion_coefficients"]["data"], dtype=DTYPE).reshape(-1)
         else:
             self.intrinsic_matrix = np.array([925.27515, 0.0, 653.75928, 
                                             0.0, 938.70001, 367.99236, 
-                                            0.0, 0.0, 1.0], dtype=np.float32).reshape((3, 3))
-            self.extrinsic_matrix_inv = np.array([1,0,0,-20,
-                                                0, -1, 0, 211,
-                                                0, 0, -1, 974,
-                                                0, 0, 0, 1], dtype=np.float32).reshape((4, 4))
-            self.extrinsic_matrix = np.linalg.pinv(self.extrinsic_matrix_inv)
+                                            0.0, 0.0, 1.0], dtype=DTYPE).reshape((3, 3))
+        self.extrinsic_matrix_inv = np.array([1,0,0,-20,
+                                            0, -1, 0, 211,
+                                            0, 0, -1, 974,
+                                            0, 0, 0, 1], dtype=DTYPE).reshape((4, 4))
+        self.extrinsic_matrix = np.linalg.pinv(self.extrinsic_matrix_inv)
 
         self.intrinsic_matrix_inv = np.linalg.pinv(self.intrinsic_matrix)
 
@@ -182,7 +185,7 @@ class Camera():
         """
         pass
 
-    def detectBlocksInDepthImage(self, _lower=905, _upper=973):
+    def detectBlocksInDepthImage(self, _lower=800, _upper=950):
         """!
         @brief      Detect blocks from depth
 
@@ -191,41 +194,47 @@ class Camera():
         # !!! Attention, one set of lower and upper only coorespond to one level of blocks
         lower = _lower
         upper = _upper
+        cur_frame = self.VideoFrame.copy()
         cnt_image = self.VideoFrame
         """mask out arm & outside board"""
         mask = np.zeros_like(self.DepthFrameRaw, dtype=np.uint8)
         # !!! Attention to these rectangles's range
         cv2.rectangle(mask, (275,120),(1100,720), 255, cv2.FILLED)
-        cv2.rectangle(mask, (575,414),(723,720), 0, cv2.FILLED)
+        cv2.rectangle(mask, (575,400),(750,720), 0, cv2.FILLED)
         cv2.rectangle(cnt_image, (275,120),(1100,720), (255, 0, 0), 2)
-        cv2.rectangle(cnt_image, (575,414),(723,720), (255, 0, 0), 2)
+        cv2.rectangle(cnt_image, (575,400),(750,720), (255, 0, 0), 2)
 
         img_depth_thr = cv2.bitwise_and(cv2.inRange(self.DepthFrameRaw, lower, upper), mask)
         # depending on your version of OpenCV, the following line could be:
         # contours, _ = cv2.findContours(img_depth_thr, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         _, contours, _ = cv2.findContours(img_depth_thr, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        self.block_contours = contours
+
         # cv2.drawContours(self.VideoFrame, contours, -1, (0,255,255), thickness=1)
         block_detection_pixel = []
+        block_contours_valid = []
         for contour in contours:
-            color = self.retrieve_area_color(contour)
+            color = self.retrieve_area_color(cur_frame, contour)
             theta = cv2.minAreaRect(contour)[2]
             M = cv2.moments(contour)
+            if abs(M["m00"]) < 1e-4:
+                continue
             cx = int(M['m10']/M['m00'])
             cy = int(M['m01']/M['m00'])
             cv2.putText(self.VideoFrame, color, (cx-30, cy+40), self.font, 1.0, (0,0,0), thickness=2)
-            cv2.putText(self.VideoFrame, str(int(theta)), (cx, cy), self.font, 0.5, (255,255,255), thickness=2)
+            # cv2.putText(self.VideoFrame, str(int(theta)), (cx, cy), self.font, 0.5, (255,255,255), thickness=2)
             # !!! Attention, no block height is taken into consideration for now
             block_detection_pixel.append(self.coor_pixel_to_world(cx, cy, 900))
+            block_contours_valid.append(contour)
         
+        self.block_contours = np.asarray(block_contours_valid)
         self.block_detections = np.asarray(block_detection_pixel)
-        print(self.block_detections.shape) # nx3
-        print(self.block_detections)
+        # print(self.block_detections.shape) # nx3
+        # print(self.block_detections)
 
-    def retrieve_area_color(self, contour):
-        mask = np.zeros(self.VideoFrame.shape[:2], dtype="uint8")
+    def retrieve_area_color(self, frame, contour):
+        mask = np.zeros(frame.shape[:2], dtype="uint8")
         cv2.drawContours(mask, [contour], -1, 255, -1)
-        mean = cv2.mean(self.VideoFrame, mask=mask)[:3]
+        mean = cv2.mean(frame, mask=mask)[:3]
         min_dist = (np.inf, None)
         for label in self.colors:
             d = np.linalg.norm(label["color"] - np.array(mean))
@@ -293,7 +302,8 @@ class CameraInfoListener:
         self.camera = camera
 
     def callback(self, data):
-        self.camera.intrinsic_matrix = np.reshape(data.K, (3, 3))
+        # self.camera.intrinsic_matrix = np.reshape(data.K, (3, 3))
+        self.camera.intrinsic_matrix = np.asarray(data.K, dtype=DTYPE).reshape((3,3))
         #print(self.camera.intrinsic_matrix)
 
 
@@ -329,8 +339,8 @@ class VideoThread(QThread):
         image_listener = ImageListener(image_topic, self.camera)
         depth_listener = DepthListener(depth_topic, self.camera)
         tag_image_listener = TagImageListener(tag_image_topic, self.camera)
-        camera_info_listener = CameraInfoListener(camera_info_topic,
-                                                  self.camera)
+        # camera_info_listener = CameraInfoListener(camera_info_topic,
+        #                                           self.camera)
         tag_detection_listener = TagDetectionListener(tag_detection_topic,
                                                       self.camera)
 
@@ -339,16 +349,18 @@ class VideoThread(QThread):
             cv2.namedWindow("Image window", cv2.WINDOW_NORMAL)
             cv2.namedWindow("Depth window", cv2.WINDOW_NORMAL)
             cv2.namedWindow("Tag window", cv2.WINDOW_NORMAL)
-            time.sleep(0.5)
+            rospy.sleep(0.5)
         while True:
-            self.camera.processVideoFrame()
-            self.camera.detectBlocksInDepthImage()
+            # !!! Error place to call these two 
+            # self.camera.processVideoFrame()
+            # self.camera.detectBlocksInDepthImage()
             rgb_frame = self.camera.convertQtVideoFrame()
             depth_frame = self.camera.convertQtDepthFrame()
             tag_frame = self.camera.convertQtTagImageFrame()
             if ((rgb_frame != None) & (depth_frame != None)):
                 self.updateFrame.emit(rgb_frame, depth_frame, tag_frame)
-            time.sleep(0.03)
+
+            rospy.sleep(0.03)
             if __name__ == '__main__':
                 cv2.imshow(
                     "Image window",
@@ -358,7 +370,7 @@ class VideoThread(QThread):
                     "Tag window",
                     cv2.cvtColor(self.camera.TagImageFrame, cv2.COLOR_RGB2BGR))
                 cv2.waitKey(3)
-                time.sleep(0.03)
+                rospy.sleep(0.03)
 
 
 if __name__ == '__main__':
