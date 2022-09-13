@@ -199,6 +199,7 @@ class StateMachine():
         print(imagePoints)
         print(objectPoints)
 
+        # !!! try solvePnPRansac()
         retval, rvec, tvec = cv2.solvePnP(objectPoints, imagePoints, self.camera.intrinsic_matrix, self.camera.distortion_coefficients)
 
         rmat, jacobian = cv2.Rodrigues(rvec) # 3x3
