@@ -54,8 +54,8 @@ def RGB_split(img):
     return red_mask, blue_mask, green_mask
 
 
-img = cv2.imread("./test/test_blocks.jpg")
-# img = cv2.imread("./test/test_blocks2.jpeg")
+# img = cv2.imread("./test/test_blocks.jpg")
+img = cv2.imread("./test/test_blocks2.jpeg")
 # img = cv2.imread("./test/test_blocks3.jpg")
 
 img = cv2.resize(img, (640, 480))
@@ -73,11 +73,12 @@ img_pair = np.concatenate([red, green, blue], axis=1)
 plt.imshow(img_pair[:,:,::-1])
 plt.show()
 
+target_frame = img
 simple_detector = create_simple_detector()
-keypoints = simple_detector.detect(img_gray)
-im_with_keypoints = cv2.drawKeypoints(img_gray, keypoints, np.array([]), (0,0,255), cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+keypoints = simple_detector.detect(target_frame)
+im_with_keypoints = cv2.drawKeypoints(img, keypoints, np.array([]), (0,0,255), cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
 
-plt.imshow(im_with_keypoints, cmap='gray')
+plt.imshow(im_with_keypoints[:,:,::-1])
 plt.show()
 
 
