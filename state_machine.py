@@ -6,6 +6,7 @@ import time
 import numpy as np
 import rospy
 import cv2
+from utils import *
 
 class StateMachine():
     """!
@@ -151,9 +152,24 @@ class StateMachine():
         self.rxarm.estop = False
         self.rxarm.enable_torque()
         self.waypoint_played = True
-        for point, gripper_state in zip(self.record_waypoints, self.record_gripper):
-            self.rxarm.set_positions(point)
-            rospy.sleep(1.5)
+        for i in range(len(self.record_waypoints)):
+            point = self.record_waypoints[i]
+            gripper_state = self.record_gripper[i]
+            move_time = 2.0
+            ac_time = 0.5
+            
+            if i > 0:
+                pre_point = self.record_waypoints[i - 1]
+                displacement = point - pre_point
+                angular_t = np.abs(displacement) / (np.pi / 5)
+                move_time = np.max(angular_t)
+                ac_time = move_time / 4.0
+            
+            self.rxarm.set_joint_positions(point,
+                                 moving_time=move_time,
+                                 accel_time=ac_time,
+                                 blocking=True)
+            #rospy.sleep(0.5)
             if self.next_state == "estop":
                 break
             if gripper_state != self.rxarm.gripper_state:
@@ -174,37 +190,26 @@ class StateMachine():
 
         """TODO Perform camera calibration routine here"""
         self.status_message = "Calibration - Completed Calibration"
-        # print("start camera calibration: please click four points")
-        # imagePoints = []
-        # click_n = 0
-        # while click_n < 4:
-        #     if self.camera.new_click:
-        #         click_n = click_n + 1
-        #         imagePoints.append([self.camera.last_click[0], self.camera.last_click[1]])
-        #         self.camera.new_click = False
-        #     else:
-        #         rospy.sleep(0.5)
-        # imagePoints = np.asarray(imagePoints, dtype=np.float32)
-        # print(imagePoints)
-        tagPoints = np.zeros((4, 3), dtype=np.float32)
+        tagPoints = np.zeros((4, 3), dtype=DTYPE)
         for detection in self.camera.tag_detections.detections:
             tagPoints[detection.id[0] - 1, 0] = detection.pose.pose.pose.position.x * 1000
             tagPoints[detection.id[0] - 1, 1] = detection.pose.pose.pose.position.y * 1000
             tagPoints[detection.id[0] - 1, 2] = detection.pose.pose.pose.position.z * 1000
 
         # !!! Change this intrinsic_matrix to the default one in /cmaera/camera_info/K
-        imagePoints = np.matmul(self.camera.intrinsic_matrix, tagPoints.T).T 
+        apriltag_intrinsic = np.array([908.3550415039062, 0.0, 642.5927124023438, 0.0, 908.4041137695312, 353.12652587890625, 0.0, 0.0, 1.0], dtype=DTYPE).reshape((3,3))
+        # imagePoints = np.matmul(self.camera.intrinsic_matrix, tagPoints.T).T
+        imagePoints = np.matmul(apriltag_intrinsic, tagPoints.T).T
+        
         imagePoints = imagePoints[:, 0:2] / imagePoints[:, 2].reshape((4, 1))
-        objectPoints = np.array([[-250, -25, 0], [250, -25, 0], [250, 275, 0], [-250, 275, 0]], dtype=np.float32)
-        print(imagePoints)
-        print(objectPoints)
+        objectPoints = np.array([[-250, -25, 0], [250, -25, 0], [250, 275, 0], [-250, 275, 0]], dtype=DTYPE)
 
-        # !!! try solvePnPRansac()
+        # !!! try solvePnPRansac() use more than 4 points
         retval, rvec, tvec = cv2.solvePnP(objectPoints, imagePoints, self.camera.intrinsic_matrix, self.camera.distortion_coefficients)
-
         rmat, jacobian = cv2.Rodrigues(rvec) # 3x3
+        tvec = tvec + np.array([0, 0, -25]).reshape((3,1)) # 3x1 z offset
         extrinsic_temp = np.column_stack((rmat, tvec)) # 3x4
-        extrinsic_pad = np.array([0, 0, 0, 1], dtype=np.float32) # 4,
+        extrinsic_pad = np.array([0, 0, 0, 1], dtype=DTYPE) # 4,
         self.camera.extrinsic_matrix = np.row_stack((extrinsic_temp, extrinsic_pad)) # 4x4
         self.camera.extrinsic_matrix_inv = np.linalg.pinv(self.camera.extrinsic_matrix)
         self.camera.cameraCalibrated = True
