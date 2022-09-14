@@ -152,14 +152,13 @@ class StateMachine():
         self.rxarm.estop = False
         self.rxarm.enable_torque()
         self.waypoint_played = True
-        for i in range(len(self.record_waypoints)):
-            point = self.record_waypoints[i]
-            gripper_state = self.record_gripper[i]
+        for idx, point in enumerate(self.record_waypoints):
+            gripper_state = self.record_gripper[idx]
             move_time = 2.0
             ac_time = 0.5
             
-            if i > 0:
-                pre_point = self.record_waypoints[i - 1]
+            if idx > 0:
+                pre_point = self.record_waypoints[idx - 1]
                 displacement = point - pre_point
                 angular_t = np.abs(displacement) / (np.pi / 5)
                 move_time = np.max(angular_t)
