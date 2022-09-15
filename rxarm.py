@@ -210,7 +210,7 @@ class RXArm(InterbotixRobot):
 
     def parse_dh_param_file(self):
         print("Parsing DH config file...")
-        parse_dh_param_file(self.dh_config_file)
+        dh_params = parse_dh_param_file(self.dh_config_file)
         print("DH config file parse exit.")
         return dh_params
 

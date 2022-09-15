@@ -16,5 +16,5 @@ def parse_dh_param_file(dh_config_file):
 
 
 ### TODO: parse a pox parameter file
-def parse_pox_param_file(dh_config_file):
+def parse_pox_param_file(pox_config_file):
     pass
