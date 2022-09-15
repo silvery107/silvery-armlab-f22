@@ -28,11 +28,11 @@ class Camera():
         """!
         @brief      Construcfalsets a new instance.
         """
-        self.VideoFrame = np.zeros((720, 1280, 3)).astype(np.uint8)
-        self.TagImageFrame = np.zeros((720, 1280, 3)).astype(np.uint8)
-        self.DepthFrameRaw = np.zeros((720, 1280)).astype(np.uint16)
+        self.VideoFrame = np.zeros((720, 1280, 3), dtype=np.uint8)
+        self.TagImageFrame = np.zeros((720, 1280, 3), dtype=np.uint8)
+        self.DepthFrameRaw = np.zeros((720, 1280), dtype=np.uint16)
         """ Extra arrays for colormaping the depth image"""
-        self.DepthFrameHSV = np.zeros((720, 1280, 3)).astype(np.uint8)
+        self.DepthFrameHSV = np.zeros((720, 1280, 3), dtype=np.uint8)
         self.DepthFrameRGB = np.array([])
 
         # mouse clicks & calibration variables
@@ -48,30 +48,34 @@ class Camera():
         self.tag_locations = [[-250, -25], [250, -25], [250, 275]]
         """ block info """
         self.block_contours = np.array([])
-        self.block_detections = np.array([])
+        self.block_detections_uvd = np.array([])
+        self.block_detections_xyz = np.array([])
         self.font = cv2.FONT_HERSHEY_SIMPLEX
-        
-        self.colors = list((
-            {'id': 'red', 'color': (127, 10, 10)},
-            {'id': 'orange', 'color': (150, 75, 30)},
-            {'id': 'yellow', 'color': (200, 150, 30)},
-            {'id': 'green', 'color': (20, 60, 20)},
-            {'id': 'blue', 'color': (0, 50, 100)},
-            {'id': 'violet', 'color': (80, 40, 100)})
-        )
+        self.color_id = ['red', 'orange', 'yellow', 'green', 'blue', 'purple', 'pink']
+        self.color_rgb_mean = np.array([[127, 10, 10],
+                                        [150, 75, 30],
+                                        [200, 150, 30],
+                                        [20, 60, 20],
+                                        [0, 50, 100],
+                                        [80, 40, 100],
+                                        [255, 192, 203]],
+                                        dtype=DTYPE)
 
     def processVideoFrame(self):
         """!
         @brief      Process a video frame
         """
+        cv2.rectangle(self.VideoFrame, (275,120),(1100,720), (255, 0, 0), 2)
+        cv2.rectangle(self.VideoFrame, (575,400),(750,720), (255, 0, 0), 2)
         if len(self.block_contours<1):
             return
-        for contour, point in zip(self.block_contours, self.block_detections):
+        for contour, pixel, point in zip(self.block_contours, self.block_detections_uvd, self.block_detections_xyz):
             color = self.retrieve_area_color(self.VideoFrame, contour)
             theta = cv2.minAreaRect(contour)[2]
-            cx, cy = point[:2]
+            cx, cy = pixel[:2]
             cv2.putText(self.VideoFrame, color, (cx-30, cy+40), self.font, 1.0, (0,0,0), thickness=2)
-            cv2.putText(self.VideoFrame, str(int(theta)), (cx, cy), self.font, 0.5, (255,255,255), thickness=2)
+            # cv2.putText(self.VideoFrame, str(int(theta)), (cx, cy), self.font, 0.5, (255,255,255), thickness=2)
+            cv2.putText(self.VideoFrame, "%.0f,%.0f,%.0f"%(point[0], point[1], point[2]), (cx-30, cy+40), self.font, 1.0, (0,0,0), thickness=2)
 
         cv2.drawContours(self.VideoFrame, self.block_contours, -1,
                          (255, 0, 255), 3)
@@ -192,10 +196,7 @@ class Camera():
                     TODO: Implement your block detector here. You will need to locate blocks in 3D space and put their XYZ
                     locations in self.block_detections
         """
-        cur_frame = self.VideoFrame.copy()
-        cnt_image = self.VideoFrame
-        cv2.rectangle(cnt_image, (275,120),(1100,720), (255, 0, 0), 2)
-        cv2.rectangle(cnt_image, (575,400),(750,720), (255, 0, 0), 2)
+        pass
 
     def detectBlocksInDepthImage(self, _lower=800, _upper=950):
         """!
@@ -216,34 +217,32 @@ class Camera():
         # contours, _ = cv2.findContours(img_depth_thr, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         _, contours, _ = cv2.findContours(img_depth_thr, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-        # cv2.drawContours(self.VideoFrame, contours, -1, (0,255,255), thickness=1)
-        block_detection_pixel = []
-        block_contours_valid = []
+        # block_detection_pixel = []
+        contours_valid = []
+        block_uvd = []
+        block_xyz = []
         for contour in contours:
             M = cv2.moments(contour)
-            if abs(M["m00"]) < 1e-4:
+            if abs(M["m00"]) < 200:
+                # reject false positive detections by area size
                 continue
             cx = int(M['m10']/M['m00'])
             cy = int(M['m01']/M['m00'])
-            # !!! Attention, no block height is taken into consideration for now
-            block_detection_pixel.append(self.coor_pixel_to_world(cx, cy, 900))
-            block_contours_valid.append(contour)
+            block_uvd.append([cx, cy, self.DepthFrameRaw[cx, cy]])
+            block_xyz.append(self.coor_pixel_to_world(block_uvd[-1]))
+            contours_valid.append(contour)
         
-        self.block_contours = np.asarray(block_contours_valid)
-        self.block_detections = np.asarray(block_detection_pixel)
-        # print(self.block_detections.shape) # nx3
-        # print(self.block_detections)
+        self.block_contours = np.array(contours_valid)
+        self.block_detections_uvd = np.array(block_uvd)
+        self.block_detections_xyz = np.array(block_xyz)
 
     def retrieve_area_color(self, frame, contour):
         mask = np.zeros(frame.shape[:2], dtype="uint8")
         cv2.drawContours(mask, [contour], -1, 255, cv2.FILLED)
-        mean = cv2.mean(frame, mask=mask)[:3]
-        min_dist = (np.inf, None)
-        for label in self.colors:
-            d = np.linalg.norm(label["color"] - np.array(mean))
-            if d < min_dist[0]:
-                min_dist = (d, label["id"])
-        return min_dist[1] 
+        mean = np.array(cv2.mean(frame, mask=mask)[:3], dtype=DTYPE)
+        dist = self.color_rgb_mean - mean
+        dist_norm = np.linalg.norm(dist, axis=1)
+        return self.color_id[np.argmin(dist_norm)]
 
     def coor_pixel_to_world(self, u, v, z):
         index = np.array([u, v, 1]).reshape((3,1))
@@ -265,7 +264,7 @@ class ImageListener:
             #cv_image = cv2.rotate(cv_image, cv2.ROTATE_180)
         except CvBridgeError as e:
             print(e)
-        self.camera.VideoFrame = cv_image
+        self.camera.VideoFrame = cv_image # TODO try .copy() here
         if self.camera.VideoFram is None:
             print("Error Video Frame !!!!!")
         else:
