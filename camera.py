@@ -31,6 +31,10 @@ class Camera():
         self.VideoFrame = np.zeros((720, 1280, 3), dtype=np.uint8)
         self.TagImageFrame = np.zeros((720, 1280, 3), dtype=np.uint8)
         self.DepthFrameRaw = np.zeros((720, 1280), dtype=np.uint16)
+        self.colorReceived = False
+        self.depthReceived = False
+        self.ProcessVideoFrame = np.zeros((720, 1280, 3), dtype=np.uint8)
+        self.ProcessDepthFrameRaw = np.zeros((720, 1280), dtype=np.uint16)
         """ Extra arrays for colormaping the depth image"""
         self.DepthFrameHSV = np.zeros((720, 1280, 3), dtype=np.uint8)
         self.DepthFrameRGB = np.array([])
@@ -52,32 +56,36 @@ class Camera():
         self.block_detections_xyz = np.array([])
         self.font = cv2.FONT_HERSHEY_SIMPLEX
         self.color_id = ['red', 'orange', 'yellow', 'green', 'blue', 'purple', 'pink']
-        self.color_rgb_mean = np.array([[127, 10, 10],
-                                        [150, 75, 30],
-                                        [200, 150, 30],
-                                        [20, 60, 20],
-                                        [0, 50, 100],
-                                        [80, 40, 100],
-                                        [255, 192, 203]],
+        self.color_rgb_mean = np.array([[127, 19, 30],
+                                        [164, 66, 5],
+                                        [218, 180, 30],
+                                        [43, 118, 85],
+                                        [0, 65, 117],
+                                        [65, 45, 73],
+                                        [147, 45, 70]],
                                         dtype=DTYPE)
+
+        # TODO
+        # use 4 aiprltag depth to calc a plane func
+        # use plane func and ideal depth to calc a ground plane offset
 
     def processVideoFrame(self):
         """!
         @brief      Process a video frame
         """
-        cv2.rectangle(self.VideoFrame, (275,120),(1100,720), (255, 0, 0), 2)
-        cv2.rectangle(self.VideoFrame, (575,400),(750,720), (255, 0, 0), 2)
-        if len(self.block_contours<1):
+        cv2.rectangle(self.ProcessVideoFrame, (275,120),(1100,720), (255, 0, 0), 2)
+        cv2.rectangle(self.ProcessVideoFrame, (575,400),(750,720), (255, 0, 0), 2)
+        if len(self.block_contours) < 1:
             return
         for contour, pixel, point in zip(self.block_contours, self.block_detections_uvd, self.block_detections_xyz):
-            color = self.retrieve_area_color(self.VideoFrame, contour)
+            color = self.retrieve_area_color(self.ProcessVideoFrame, contour)
             theta = cv2.minAreaRect(contour)[2]
             cx, cy = pixel[:2]
-            cv2.putText(self.VideoFrame, color, (cx-30, cy+40), self.font, 1.0, (0,0,0), thickness=2)
+            cv2.putText(self.ProcessVideoFrame, color, (cx-30, cy+40), self.font, 1.0, (0,0,0), thickness=2)
             # cv2.putText(self.VideoFrame, str(int(theta)), (cx, cy), self.font, 0.5, (255,255,255), thickness=2)
-            cv2.putText(self.VideoFrame, "%.0f,%.0f,%.0f"%(point[0], point[1], point[2]), (cx-30, cy+40), self.font, 1.0, (0,0,0), thickness=2)
+            cv2.putText(self.ProcessVideoFrame, "z %.0f"%(point[2]), (cx-30, cy+70), self.font, 1.0, (0,0,0), thickness=2)
 
-        cv2.drawContours(self.VideoFrame, self.block_contours, -1,
+        cv2.drawContours(self.ProcessVideoFrame, self.block_contours, -1,
                          (255, 0, 255), 3)
 
     def ColorizeDepthFrame(self):
@@ -113,7 +121,7 @@ class Camera():
         """
 
         try:
-            frame = cv2.resize(self.VideoFrame, (1280, 720))
+            frame = cv2.resize(self.ProcessVideoFrame, (1280, 720))
             img = QImage(frame, frame.shape[1], frame.shape[0],
                          QImage.Format_RGB888)
             return img
@@ -198,7 +206,7 @@ class Camera():
         """
         pass
 
-    def detectBlocksInDepthImage(self, _lower=800, _upper=950):
+    def detectBlocksInDepthImage(self, _lower=700, _upper=950):
         """!
         @brief      Detect blocks from depth
 
@@ -208,11 +216,11 @@ class Camera():
         lower = _lower
         upper = _upper
         """mask out arm & outside board"""
-        mask = np.zeros_like(self.DepthFrameRaw, dtype=np.uint8)
+        mask = np.zeros_like(self.ProcessDepthFrameRaw, dtype=np.uint8)
         # !!! Attention to these rectangles's range
         cv2.rectangle(mask, (275,120),(1100,720), 255, cv2.FILLED)
         cv2.rectangle(mask, (575,400),(750,720), 0, cv2.FILLED)
-        img_depth_thr = cv2.bitwise_and(cv2.inRange(self.DepthFrameRaw, lower, upper), mask)
+        img_depth_thr = cv2.bitwise_and(cv2.inRange(self.ProcessDepthFrameRaw, lower, upper), mask)
         # depending on your version of OpenCV, the following line could be:
         # contours, _ = cv2.findContours(img_depth_thr, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         _, contours, _ = cv2.findContours(img_depth_thr, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -228,8 +236,9 @@ class Camera():
                 continue
             cx = int(M['m10']/M['m00'])
             cy = int(M['m01']/M['m00'])
-            block_uvd.append([cx, cy, self.DepthFrameRaw[cx, cy]])
-            block_xyz.append(self.coor_pixel_to_world(block_uvd[-1]))
+            cz = self.ProcessDepthFrameRaw[cy, cx]
+            block_uvd.append([cx, cy, cz])
+            block_xyz.append(self.coor_pixel_to_world(cx, cy, cz))
             contours_valid.append(contour)
         
         self.block_contours = np.array(contours_valid)
@@ -265,10 +274,7 @@ class ImageListener:
         except CvBridgeError as e:
             print(e)
         self.camera.VideoFrame = cv_image # TODO try .copy() here
-        if self.camera.VideoFram is None:
-            print("Error Video Frame !!!!!")
-        else:
-            self.camera.processVideoFrame()
+        self.camera.colorReceived = True
         
 
 class TagImageListener:
@@ -329,10 +335,7 @@ class DepthListener:
         self.camera.DepthFrameRaw = cv_depth
         #self.camera.DepthFrameRaw = self.camera.DepthFrameRaw/2
         self.camera.ColorizeDepthFrame()
-        if self.camera.DepthFrameRaw is None:
-            print("Error Depth Frame !!!!!")
-        else:
-            self.camera.detectBlocksInDepthImage()
+        self.camera.depthReceived = True
 
 
 class VideoThread(QThread):
@@ -361,9 +364,11 @@ class VideoThread(QThread):
             cv2.namedWindow("Tag window", cv2.WINDOW_NORMAL)
             rospy.sleep(0.5)
         while True:
-            # !!! Error place to call these two 
-            # self.camera.processVideoFrame()
-            # self.camera.detectBlocksInDepthImage()
+            if self.camera.colorReceived and self.camera.depthReceived:
+                self.camera.ProcessVideoFrame = self.camera.VideoFrame
+                self.camera.ProcessDepthFrameRaw = self.camera.DepthFrameRaw
+                self.camera.detectBlocksInDepthImage()
+                self.camera.processVideoFrame()
             rgb_frame = self.camera.convertQtVideoFrame()
             depth_frame = self.camera.convertQtDepthFrame()
             tag_frame = self.camera.convertQtTagImageFrame()
