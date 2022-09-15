@@ -64,6 +64,15 @@ class Camera():
         """!
         @brief      Process a video frame
         """
+        if len(self.block_contours<1):
+            return
+        for contour, point in zip(self.block_contours, self.block_detections):
+            color = self.retrieve_area_color(self.VideoFrame, contour)
+            theta = cv2.minAreaRect(contour)[2]
+            cx, cy = point[:2]
+            cv2.putText(self.VideoFrame, color, (cx-30, cy+40), self.font, 1.0, (0,0,0), thickness=2)
+            cv2.putText(self.VideoFrame, str(int(theta)), (cx, cy), self.font, 0.5, (255,255,255), thickness=2)
+
         cv2.drawContours(self.VideoFrame, self.block_contours, -1,
                          (255, 0, 255), 3)
 
@@ -183,7 +192,10 @@ class Camera():
                     TODO: Implement your block detector here. You will need to locate blocks in 3D space and put their XYZ
                     locations in self.block_detections
         """
-        pass
+        cur_frame = self.VideoFrame.copy()
+        cnt_image = self.VideoFrame
+        cv2.rectangle(cnt_image, (275,120),(1100,720), (255, 0, 0), 2)
+        cv2.rectangle(cnt_image, (575,400),(750,720), (255, 0, 0), 2)
 
     def detectBlocksInDepthImage(self, _lower=800, _upper=950):
         """!
@@ -194,16 +206,11 @@ class Camera():
         # !!! Attention, one set of lower and upper only coorespond to one level of blocks
         lower = _lower
         upper = _upper
-        cur_frame = self.VideoFrame.copy()
-        cnt_image = self.VideoFrame
         """mask out arm & outside board"""
         mask = np.zeros_like(self.DepthFrameRaw, dtype=np.uint8)
         # !!! Attention to these rectangles's range
         cv2.rectangle(mask, (275,120),(1100,720), 255, cv2.FILLED)
         cv2.rectangle(mask, (575,400),(750,720), 0, cv2.FILLED)
-        cv2.rectangle(cnt_image, (275,120),(1100,720), (255, 0, 0), 2)
-        cv2.rectangle(cnt_image, (575,400),(750,720), (255, 0, 0), 2)
-
         img_depth_thr = cv2.bitwise_and(cv2.inRange(self.DepthFrameRaw, lower, upper), mask)
         # depending on your version of OpenCV, the following line could be:
         # contours, _ = cv2.findContours(img_depth_thr, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -213,15 +220,11 @@ class Camera():
         block_detection_pixel = []
         block_contours_valid = []
         for contour in contours:
-            color = self.retrieve_area_color(cur_frame, contour)
-            theta = cv2.minAreaRect(contour)[2]
             M = cv2.moments(contour)
             if abs(M["m00"]) < 1e-4:
                 continue
             cx = int(M['m10']/M['m00'])
             cy = int(M['m01']/M['m00'])
-            cv2.putText(self.VideoFrame, color, (cx-30, cy+40), self.font, 1.0, (0,0,0), thickness=2)
-            # cv2.putText(self.VideoFrame, str(int(theta)), (cx, cy), self.font, 0.5, (255,255,255), thickness=2)
             # !!! Attention, no block height is taken into consideration for now
             block_detection_pixel.append(self.coor_pixel_to_world(cx, cy, 900))
             block_contours_valid.append(contour)
@@ -233,7 +236,7 @@ class Camera():
 
     def retrieve_area_color(self, frame, contour):
         mask = np.zeros(frame.shape[:2], dtype="uint8")
-        cv2.drawContours(mask, [contour], -1, 255, -1)
+        cv2.drawContours(mask, [contour], -1, 255, cv2.FILLED)
         mean = cv2.mean(frame, mask=mask)[:3]
         min_dist = (np.inf, None)
         for label in self.colors:
@@ -263,6 +266,10 @@ class ImageListener:
         except CvBridgeError as e:
             print(e)
         self.camera.VideoFrame = cv_image
+        if self.camera.VideoFram is None:
+            print("Error Video Frame !!!!!")
+        else:
+            self.camera.processVideoFrame()
         
 
 class TagImageListener:
@@ -323,6 +330,10 @@ class DepthListener:
         self.camera.DepthFrameRaw = cv_depth
         #self.camera.DepthFrameRaw = self.camera.DepthFrameRaw/2
         self.camera.ColorizeDepthFrame()
+        if self.camera.DepthFrameRaw is None:
+            print("Error Depth Frame !!!!!")
+        else:
+            self.camera.detectBlocksInDepthImage()
 
 
 class VideoThread(QThread):
