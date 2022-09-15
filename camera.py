@@ -206,7 +206,7 @@ class Camera():
         """
         pass
 
-    def detectBlocksInDepthImage(self, _lower=700, _upper=950):
+    def detectBlocksInDepthImage(self, _lower=700, _upper=960):
         """!
         @brief      Detect blocks from depth
 
