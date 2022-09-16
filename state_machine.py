@@ -190,6 +190,10 @@ class StateMachine():
         """TODO Perform camera calibration routine here"""
         self.status_message = "Calibration - Completed Calibration"
         tagPoints = np.zeros((4, 3), dtype=DTYPE)
+        if len(self.camera.tag_detections.detections)<4:
+            self.next_state = "idel"
+            print("Calibrate failed. Detected less than 4 tags.")
+            return
         for detection in self.camera.tag_detections.detections:
             tagPoints[detection.id[0] - 1, 0] = detection.pose.pose.pose.position.x * 1000
             tagPoints[detection.id[0] - 1, 1] = detection.pose.pose.pose.position.y * 1000
@@ -222,7 +226,11 @@ class StateMachine():
         """!
         @brief      Detect the blocks
         """
-        rospy.sleep(1)
+        self.current_state = "detect"
+        self.status_message = "Detecting blocks..."
+        self.camera.detectBlocksInDepthImage()
+        rospy.sleep(0.05)
+        self.next_state = "idel"
 
     def initialize_rxarm(self):
         """!

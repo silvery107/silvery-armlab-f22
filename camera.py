@@ -19,6 +19,34 @@ import yaml
 from utils import DTYPE
 from scipy import stats
 
+class BlockDetections():
+    def __init__(self):
+        self.detected_num = 0
+        self.contours = None
+        self.colors = None
+        self.thetas = None
+        self.uvds = None
+        self.xyzs = None
+        self.all_contours = None
+
+    def update(self):
+        self.contours = np.array(self.contours)
+        self.uvds = np.array(self.uvds, dtype=int)
+        self.xyzs = np.array(self.xyzs, dtype=DTYPE)
+        self.detected_num = len(self.contours)
+        # self.colors = 
+        # self.thetas = thetas
+
+    def reset(self):
+        self.detected_num = 0
+        self.contours = []
+        self.colors = []
+        self.thetas = []
+        self.uvds = []
+        self.xyzs = []
+        self.all_contours = None
+
+
 class Camera():
     """!
     @brief      This class describes a camera.
@@ -33,6 +61,7 @@ class Camera():
         self.colorReceived = False
         self.depthReceived = False
         self.ProcessVideoFrame = np.zeros((720, 1280, 3), dtype=np.uint8)
+        self.ProcessVideoFrameLab = np.zeros((720, 1280, 3), dtype=np.uint8)
         self.ProcessDepthFrameRaw = np.zeros((720, 1280), dtype=np.uint16)
         """ Extra arrays for colormaping the depth image"""
         self.DepthFrameHSV = np.zeros((720, 1280, 3), dtype=np.uint8)
@@ -50,9 +79,7 @@ class Camera():
         self.tag_detections = np.array([])
         self.tag_locations = [[-250, -25], [250, -25], [250, 275]]
         """ block info """
-        self.block_contours = np.array([])
-        self.block_detections_uvd = np.array([])
-        self.block_detections_xyz = np.array([])
+        self.block_detections = BlockDetections()
         self.font = cv2.FONT_HERSHEY_SIMPLEX
         self.color_id = ['red', 'orange', 'yellow', 'green', 'blue', 'purple', 'pink']
         self.color_rgb_mean = np.array([[127, 19, 30],
@@ -62,7 +89,9 @@ class Camera():
                                         [0, 65, 117],
                                         [65, 45, 73],
                                         [147, 45, 70]],
-                                        dtype=DTYPE)
+                                        dtype=np.uint8)
+        self.color_lab_mean = cv2.cvtColor(self.color_rgb_mean[:,None,:], cv2.COLOR_RGB2LAB).squeeze()
+
 
         self.loadCameraCalibration("config/camera_calib.yaml")
         # TODO
@@ -75,18 +104,17 @@ class Camera():
         """
         cv2.rectangle(self.ProcessVideoFrame, (275,120),(1100,720), (255, 0, 0), 2)
         cv2.rectangle(self.ProcessVideoFrame, (575,400),(750,720), (255, 0, 0), 2)
-        if len(self.block_contours) < 1:
+        if self.block_detections.detected_num < 1:
             return
-        for contour, pixel, point in zip(self.block_contours, self.block_detections_uvd, self.block_detections_xyz):
-            color = self.retrieve_area_color(self.ProcessVideoFrame, contour)
-            theta = cv2.minAreaRect(contour)[2]
+        for color, pixel, point in zip(self.block_detections.colors, self.block_detections.uvds, self.block_detections.xyzs):
             cx, cy = pixel[:2]
-            cv2.putText(self.ProcessVideoFrame, color, (cx-30, cy+40), self.font, 1.0, (0,0,0), thickness=2)
+            cv2.putText(self.ProcessVideoFrame, color, (cx-30, cy+30), self.font, 0.5, (0,0,0), thickness=2)
+            cv2.putText(self.ProcessVideoFrame, "+", (cx-12, cy+8), self.font, 1, (255,255,255), thickness=2)
             # cv2.putText(self.VideoFrame, str(int(theta)), (cx, cy), self.font, 0.5, (255,255,255), thickness=2)
-            cv2.putText(self.ProcessVideoFrame, "z %.0f"%(point[2]), (cx-30, cy+70), self.font, 1.0, (0,0,0), thickness=2)
+            cv2.putText(self.ProcessVideoFrame, "%.0f"%(point[2]), (cx-20, cy+55), self.font, 0.5, (0,0,0), thickness=1)
 
-        cv2.drawContours(self.ProcessVideoFrame, self.block_contours, -1,
-                         (255, 0, 255), 3)
+        cv2.drawContours(self.ProcessVideoFrame, self.block_detections.all_contours, -1, (255, 0, 0), 1)
+        cv2.drawContours(self.ProcessVideoFrame, self.block_detections.contours, -1, (0, 0, 255), 1)
 
     def ColorizeDepthFrame(self):
         """!
@@ -212,6 +240,7 @@ class Camera():
 
                     TODO: Implement a blob detector to find blocks in the depth image
         """
+        self.block_detections.reset()
         lower = _lower
         upper = _upper
         """mask out arm & outside board"""
@@ -225,13 +254,16 @@ class Camera():
         # depending on your version of OpenCV, the following line could be:
         contours, _ = cv2.findContours(img_depth_thr, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[-2:]
         # _, contours, _ = cv2.findContours(img_depth_thr, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        self.block_detections.all_contours = contours
 
+        cv2.drawContours(self.ProcessVideoFrame, contours, -1, (255, 0, 0), 1)
         contours_valid = []
         block_uvd = []
         block_xyz = []
+        colors = []
         for contour in contours:
             M = cv2.moments(contour)
-            if M['m00'] < 200 or abs(M["m00"]) > 4000:
+            if M['m00'] < 200 or abs(M["m00"]) > 7000:
                 # reject false positive detections by area size
                 continue
             mask_single = np.zeros_like(self.ProcessDepthFrameRaw, dtype=np.uint8)
@@ -249,19 +281,20 @@ class Camera():
             cx = int(M['m10']/M['m00'])
             cy = int(M['m01']/M['m00'])
             cz = self.ProcessDepthFrameRaw[cy, cx]
-            block_uvd.append([cx, cy, cz])
-            block_xyz.append(self.coor_pixel_to_world(cx, cy, cz))
-            contours_valid.append(contours_new_valid)
-        
-        self.block_contours = np.array(contours_valid)
-        self.block_detections_uvd = np.array(block_uvd)
-        self.block_detections_xyz = np.array(block_xyz)
+            self.block_detections.uvds.append([cx, cy, cz])
+            self.block_detections.xyzs.append(self.coor_pixel_to_world(cx, cy, cz))
+            self.block_detections.contours.append(contours_new_valid)
+            self.block_detections.thetas.append(cv2.minAreaRect(contours_new_valid)[2])
+            self.block_detections.colors.append(self.retrieve_area_color(self.ProcessVideoFrameLab, contours_new_valid))
+
+        self.block_detections.update()
 
     def retrieve_area_color(self, frame, contour):
         mask = np.zeros(frame.shape[:2], dtype="uint8")
         cv2.drawContours(mask, [contour], -1, 255, cv2.FILLED)
         mean = np.array(cv2.mean(frame, mask=mask)[:3], dtype=DTYPE)
-        dist = self.color_rgb_mean - mean
+        # dist = self.color_rgb_mean - mean
+        dist = self.color_lab_mean - mean
         dist_norm = np.linalg.norm(dist, axis=1)
         return self.color_id[np.argmin(dist_norm)]
 
@@ -379,8 +412,9 @@ class VideoThread(QThread):
         while True:
             if self.camera.colorReceived and self.camera.depthReceived:
                 self.camera.ProcessVideoFrame = self.camera.VideoFrame.copy()
+                self.camera.ProcessVideoFrameLab = cv2.cvtColor(self.camera.ProcessVideoFrame, cv2.COLOR_RGB2LAB)
                 self.camera.ProcessDepthFrameRaw = self.camera.DepthFrameRaw.copy()
-                self.camera.detectBlocksInDepthImage()
+                # self.camera.detectBlocksInDepthImage()
                 self.camera.processVideoFrame()
             rgb_frame = self.camera.convertQtVideoFrame()
             depth_frame = self.camera.convertQtDepthFrame()

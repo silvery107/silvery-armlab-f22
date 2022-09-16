@@ -100,6 +100,8 @@ class Gui(QMainWindow):
         self.ui.btnUser5.clicked.connect(partial(nxt_if_arm_init, 'record'))
         self.ui.btnUser6.setText('Play Waypoints')
         self.ui.btnUser6.clicked.connect(partial(nxt_if_arm_init, 'play'))
+        self.ui.btnUser7.setText('Detect Blocks')
+        self.ui.btnUser7.clicked.connect(partial(nxt_if_arm_init, 'detect'))
 
         # Sliders
         for sldr in self.joint_sliders:
