@@ -14,7 +14,6 @@ from sensor_msgs.msg import Image
 from sensor_msgs.msg import CameraInfo
 from apriltag_ros.msg import *
 from cv_bridge import CvBridge, CvBridgeError
-
 import yaml
 
 from utils import DTYPE # pip install pyyaml
@@ -260,22 +259,6 @@ class Camera():
         world_pos = np.matmul(self.extrinsic_matrix_inv, temp_pos)
         return world_pos
 
-class ImageListener:
-    def __init__(self, topic, camera):
-        self.topic = topic
-        self.bridge = CvBridge()
-        self.image_sub = rospy.Subscriber(topic, Image, self.callback)
-        self.camera = camera
-
-    def callback(self, data):
-        try:
-            cv_image = self.bridge.imgmsg_to_cv2(data, data.encoding)
-            #cv_image = cv2.rotate(cv_image, cv2.ROTATE_180)
-        except CvBridgeError as e:
-            print(e)
-        self.camera.VideoFrame = cv_image # TODO try .copy() here
-        self.camera.colorReceived = True
-        
 
 class TagImageListener:
     def __init__(self, topic, camera):
@@ -317,6 +300,23 @@ class CameraInfoListener:
         # self.camera.intrinsic_matrix = np.reshape(data.K, (3, 3))
         self.camera.intrinsic_matrix = np.asarray(data.K, dtype=DTYPE).reshape((3,3))
         #print(self.camera.intrinsic_matrix)
+
+
+class ImageListener:
+    def __init__(self, topic, camera):
+        self.topic = topic
+        self.bridge = CvBridge()
+        self.image_sub = rospy.Subscriber(topic, Image, self.callback)
+        self.camera = camera
+
+    def callback(self, data):
+        try:
+            cv_image = self.bridge.imgmsg_to_cv2(data, data.encoding)
+            #cv_image = cv2.rotate(cv_image, cv2.ROTATE_180)
+        except CvBridgeError as e:
+            print(e)
+        self.camera.VideoFrame = cv_image # TODO try .copy() here
+        self.camera.colorReceived = True
 
 
 class DepthListener:
@@ -365,8 +365,8 @@ class VideoThread(QThread):
             rospy.sleep(0.5)
         while True:
             if self.camera.colorReceived and self.camera.depthReceived:
-                self.camera.ProcessVideoFrame = self.camera.VideoFrame
-                self.camera.ProcessDepthFrameRaw = self.camera.DepthFrameRaw
+                self.camera.ProcessVideoFrame = self.camera.VideoFrame.copy()
+                self.camera.ProcessDepthFrameRaw = self.camera.DepthFrameRaw.copy()
                 self.camera.detectBlocksInDepthImage()
                 self.camera.processVideoFrame()
             rgb_frame = self.camera.convertQtVideoFrame()
