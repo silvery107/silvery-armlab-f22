@@ -215,7 +215,8 @@ class Camera():
         lower = _lower
         upper = _upper
         """mask out arm & outside board"""
-        self.ProcessDepthFrameRaw = cv2.GaussianBlur(self.ProcessDepthFrameRaw, (5, 5), 3)
+        # self.ProcessDepthFrameRaw = cv2.GaussianBlur(self.ProcessDepthFrameRaw, (5, 5), 3)
+        self.ProcessDepthFrameRaw = cv2.medianBlur(self.ProcessDepthFrameRaw, 3)
         mask = np.zeros_like(self.ProcessDepthFrameRaw, dtype=np.uint8)
         # !!! Attention to these rectangles's range
         cv2.rectangle(mask, (275,120),(1100,720), 255, cv2.FILLED)
