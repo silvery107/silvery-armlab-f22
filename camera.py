@@ -215,6 +215,7 @@ class Camera():
         lower = _lower
         upper = _upper
         """mask out arm & outside board"""
+        self.ProcessDepthFrameRaw = cv2.GaussianBlur(self.ProcessDepthFrameRaw, (5, 5), 3)
         mask = np.zeros_like(self.ProcessDepthFrameRaw, dtype=np.uint8)
         # !!! Attention to these rectangles's range
         cv2.rectangle(mask, (275,120),(1100,720), 255, cv2.FILLED)
@@ -229,7 +230,7 @@ class Camera():
         block_xyz = []
         for contour in contours:
             M = cv2.moments(contour)
-            if M['m00'] < 200:
+            if M['m00'] < 200 or abs(M["m00"]) > 4000:
                 # reject false positive detections by area size
                 continue
             mask_single = np.zeros_like(self.ProcessDepthFrameRaw, dtype=np.uint8)
@@ -239,9 +240,8 @@ class Camera():
             mode, count = stats.mode(depth_array)
             depth_new = cv2.inRange(depth_single, lower, int(mode)+5)
             contours_new, _ = cv2.findContours(depth_new, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[-2:]
-            # !!! Attention new contours' length
-            # assert len(contours_new) == 1
-            M = cv2.moments(contours_new[0])
+            contours_new_valid = max(contours_new, key=cv2.contourArea) # find the largest contour
+            M = cv2.moments(contours_new_valid)
             if abs(M["m00"]) < 200:
                 # reject false positive detections by area size
                 continue
@@ -250,7 +250,7 @@ class Camera():
             cz = self.ProcessDepthFrameRaw[cy, cx]
             block_uvd.append([cx, cy, cz])
             block_xyz.append(self.coor_pixel_to_world(cx, cy, cz))
-            contours_valid.append(contours_new[0])
+            contours_valid.append(contours_new_valid)
         
         self.block_contours = np.array(contours_valid)
         self.block_detections_uvd = np.array(block_uvd)
@@ -387,7 +387,7 @@ class VideoThread(QThread):
             if ((rgb_frame != None) & (depth_frame != None)):
                 self.updateFrame.emit(rgb_frame, depth_frame, tag_frame)
 
-            rospy.sleep(0.03)
+            rospy.sleep(0.04)
             if __name__ == '__main__':
                 cv2.imshow(
                     "Image window",
