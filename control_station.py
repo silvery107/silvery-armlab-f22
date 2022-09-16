@@ -60,7 +60,6 @@ class Gui(QMainWindow):
         ]
         """Objects Using Other Classes"""
         self.camera = Camera()
-        self.camera.loadCameraCalibration("config/camera_calib.yaml")
         print("Creating rx arm...")
         if (dh_config_file is not None):
             self.rxarm = RXArm(dh_config_file=dh_config_file)

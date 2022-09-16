@@ -16,8 +16,8 @@ from apriltag_ros.msg import *
 from cv_bridge import CvBridge, CvBridgeError
 import yaml
 
-from utils import DTYPE # pip install pyyaml
-
+from utils import DTYPE
+from scipy import stats
 
 class Camera():
     """!
@@ -64,6 +64,7 @@ class Camera():
                                         [147, 45, 70]],
                                         dtype=DTYPE)
 
+        self.loadCameraCalibration("config/camera_calib.yaml")
         # TODO
         # use 4 aiprltag depth to calc a plane func
         # use plane func and ideal depth to calc a ground plane offset
@@ -211,7 +212,6 @@ class Camera():
 
                     TODO: Implement a blob detector to find blocks in the depth image
         """
-        # !!! Attention, one set of lower and upper only coorespond to one level of blocks
         lower = _lower
         upper = _upper
         """mask out arm & outside board"""
@@ -221,15 +221,27 @@ class Camera():
         cv2.rectangle(mask, (575,400),(750,720), 0, cv2.FILLED)
         img_depth_thr = cv2.bitwise_and(cv2.inRange(self.ProcessDepthFrameRaw, lower, upper), mask)
         # depending on your version of OpenCV, the following line could be:
-        # contours, _ = cv2.findContours(img_depth_thr, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        _, contours, _ = cv2.findContours(img_depth_thr, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        contours, _ = cv2.findContours(img_depth_thr, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[-2:]
+        # _, contours, _ = cv2.findContours(img_depth_thr, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-        # block_detection_pixel = []
         contours_valid = []
         block_uvd = []
         block_xyz = []
         for contour in contours:
             M = cv2.moments(contour)
+            if M['m00'] < 200:
+                # reject false positive detections by area size
+                continue
+            mask_single = np.zeros_like(self.ProcessDepthFrameRaw, dtype=np.uint8)
+            cv2.drawContours(mask_single, [contour], -1, 255, cv2.FILLED)
+            depth_single = cv2.bitwise_and(self.ProcessDepthFrameRaw, self.ProcessDepthFrameRaw, mask=mask_single)
+            depth_array = depth_single[depth_single>0]
+            mode, count = stats.mode(depth_array)
+            depth_new = cv2.inRange(depth_single, lower, int(mode)+5)
+            contours_new, _ = cv2.findContours(depth_new, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[-2:]
+            # !!! Attention new contours' length
+            # assert len(contours_new) == 1
+            M = cv2.moments(contours_new[0])
             if abs(M["m00"]) < 200:
                 # reject false positive detections by area size
                 continue
@@ -238,7 +250,7 @@ class Camera():
             cz = self.ProcessDepthFrameRaw[cy, cx]
             block_uvd.append([cx, cy, cz])
             block_xyz.append(self.coor_pixel_to_world(cx, cy, cz))
-            contours_valid.append(contour)
+            contours_valid.append(contours_new[0])
         
         self.block_contours = np.array(contours_valid)
         self.block_detections_uvd = np.array(block_uvd)
@@ -379,7 +391,7 @@ class VideoThread(QThread):
             if __name__ == '__main__':
                 cv2.imshow(
                     "Image window",
-                    cv2.cvtColor(self.camera.VideoFrame, cv2.COLOR_RGB2BGR))
+                    cv2.cvtColor(self.camera.ProcessVideoFrame, cv2.COLOR_RGB2BGR))
                 cv2.imshow("Depth window", self.camera.DepthFrameRGB)
                 cv2.imshow(
                     "Tag window",
