@@ -119,7 +119,12 @@ def to_s_matrix(w, v):
 
     @return     { description_of_the_return_value }
     """
-    pass
+    wmat = np.array([[0, -w[2], w[1]],
+                     [w[2], 0, -w[0]],
+                     [-w[1], w[0], 0]])
+    smat = np.column_stack((wmat, v))
+    smat = np.row_stack((smat, np.array([0,0,0,0])))
+    return smat
 
 
 def IK_geometric(dh_params, pose):

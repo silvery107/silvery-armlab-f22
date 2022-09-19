@@ -17,4 +17,16 @@ def parse_dh_param_file(dh_config_file):
 
 ### TODO: parse a pox parameter file
 def parse_pox_param_file(pox_config_file):
-    pass
+    assert(pox_config_file is not None)
+    f_line_contents = None
+    with open(pox_config_file, "r") as f:
+        f_line_contents = f.readlines()
+
+    assert(f.closed)
+    assert(f_line_contents is not None)
+    # maybe not the most efficient/clean/etc. way to do this, but should only have to be done once so NBD
+    M_matrix = np.asarray([line.split() for line in f_line_contents[1:5]])
+    M_matrix = M_matrix.astype(float)
+    S_list = np.asarray([line.split() for line in f_line_contents[6:]])
+    S_list = S_list.astype(float)
+    return M_matrix, S_list
