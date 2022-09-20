@@ -11,6 +11,7 @@ import numpy as np
 from scipy.linalg import expm
 
 from utils import DTYPE, Quaternion
+from math import sin, cos
 
 
 def clamp(angle):
@@ -47,7 +48,20 @@ def FK_dh(dh_params, joint_angles, link):
 
     @return     a transformation matrix representing the pose of the desired link
     """
-    pass
+    H = np.identity(4, dtype=DTYPE)
+    for idx, t in enumerate(joint_angles):
+        a, alpha, d, theta = dh_params[idx]
+        if alpha == -1:
+            alpha = t
+        elif theta == -1:
+            theta = t
+        A = get_transform_from_dh(a, alpha, d, theta)
+        H = np.matmul(H, A)
+
+    pose = get_pose_from_T(H)
+    rpy = get_euler_angles_from_T(H)
+
+    return np.array([pose[0], pose[1], pose[2], rpy[1]], dtype=DTYPE)
 
 
 def get_transform_from_dh(a, alpha, d, theta):
@@ -63,7 +77,24 @@ def get_transform_from_dh(a, alpha, d, theta):
 
     @return     The 4x4 transform matrix.
     """
-    pass
+    Rot1 = np.array([[cos(theta), -sin(theta), 0, 0],
+                     [sin(theta), cos(theta), 0, 0],
+                     [0, 0, 1, 0],
+                     [0, 0, 0, 1]], dtype=DTYPE)
+    Trans1 = np.array([[1, 0, 0, 0],
+                       [0, 1, 0, 0],
+                       [0, 0, 1, d],
+                       [0, 0, 0, 1]], dtype=DTYPE)
+    Trans2 = np.array([[1, 0, 0, a],
+                       [0, 1, 0, 0],
+                       [0, 0, 1, 0],
+                       [0, 0, 0, 1]], dtype=DTYPE)
+    Rot2 = np.array([[1, 0, 0, 0],
+                     [0, cos(alpha), -sin(alpha), 0],
+                     [0, sin(alpha), cos(alpha), 0],
+                     [0, 0, 0, 1]], dtype=DTYPE)
+    T = np.matmul(np.matmul(np.matmul(Rot1, Trans1), Trans2), Rot2)
+    return T
 
 
 def get_euler_angles_from_T(T):
@@ -209,7 +240,7 @@ def rot_to_quat(rot):
     
     return q
 
-def quat_to_rpy(q) -> np.ndarray:
+def quat_to_rpy(q):
     """
     * Convert a quaternion to RPY. Return
     * angles in (roll, pitch, yaw).

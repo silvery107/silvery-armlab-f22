@@ -93,5 +93,5 @@ class Quaternion:
     def inverse(self):
         return Quaternion(self.w/(self._norm*self._norm),-self.x/(self._norm*self._norm),-self.y/(self._norm*self._norm),-self.z/(self._norm*self._norm))
     
-    def __str__(self) -> str:
+    def __str__(self):
         return '['+str(self.w)+', '+str(self.x)+', '+str(self.y)+', '+str(self.z)+']'
