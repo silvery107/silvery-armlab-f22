@@ -1,5 +1,8 @@
 import sys
 import numpy as np
+import yaml
+
+from utils import DTYPE
 
 def parse_dh_param_file(dh_config_file):
     assert(dh_config_file is not None)
@@ -15,6 +18,13 @@ def parse_dh_param_file(dh_config_file):
     return dh_params
 
 
-### TODO: parse a pox parameter file
-def parse_pox_param_file(pox_config_file):
-    pass
+# TODO: parse a pox parameter file
+def parse_pox_param_file_yaml(pox_config_file):
+    assert pox_config_file is not None
+    data = None
+    with open(pox_config_file, "r") as stream:
+        data = yaml.safe_load(stream)
+    assert (data is not None)
+    M_matrix = np.asarray(data["M_matrix"]["data"], dtype=DTYPE).reshape((data["M_matrix"]["rows"], data["M_matrix"]["cols"]))
+    screw_vectors = np.asarray(data["screw_vectors"]["data"], dtype=DTYPE).reshape((data["screw_vectors"]["rows"], data["screw_vectors"]["cols"]))
+    return M_matrix, screw_vectors
