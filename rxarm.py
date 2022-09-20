@@ -80,13 +80,13 @@ class RXArm(InterbotixRobot):
         self.dh_params = []
         self.dh_config_file = dh_config_file
         if (dh_config_file is not None):
-            self.dh_params = RXArm.parse_dh_param_file(dh_config_file)
+            self.dh_params = self.parse_dh_param_file(dh_config_file)
         #POX params
         self.M_matrix = []
         self.S_list = []
         self.pox_config_file = pox_config_file
         if (pox_config_file is not None):
-            self.M_matrix, self.S_list = RXArm.parse_pox_param_file(pox_config_file)
+            self.M_matrix, self.S_list = self.parse_pox_param_file(pox_config_file)
 
     def initialize(self):
         """!

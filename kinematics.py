@@ -5,9 +5,12 @@ TODO: Here is where you will write all of your kinematics functions
 There are some functions to start with, you may need to implement a few more
 """
 
+import math
 import numpy as np
 # expm is a matrix exponential function
 from scipy.linalg import expm
+
+from utils import DTYPE
 
 
 def clamp(angle):
@@ -73,7 +76,7 @@ def get_euler_angles_from_T(T):
 
     @return     The euler angles from T.
     """
-    pass
+    return rot_to_rpy(T[:3, :3]).flatten()
 
 
 def get_pose_from_T(T):
@@ -87,7 +90,7 @@ def get_pose_from_T(T):
 
     @return     The pose from T.
     """
-    pass
+    return T[:3, 3].flatten()
 
 
 def FK_pox(joint_angles, m_mat, s_lst):
@@ -104,8 +107,8 @@ def FK_pox(joint_angles, m_mat, s_lst):
 
     @return     a 4-tuple (x, y, z, phi) representing the pose of the desired link
     """
-    print(joint_angles)
-    T = np.identity(4).astype(float)
+    # print(joint_angles)
+    T = np.identity(4, dtype=DTYPE)
     for idx, t in enumerate(joint_angles):
         w = s_lst[idx,0:3]
         v = s_lst[idx,3:]
@@ -113,28 +116,34 @@ def FK_pox(joint_angles, m_mat, s_lst):
         wmat = to_w_matrix(w)
         smat = to_s_matrix(wmat,v)
 
-        ewt = np.identity(3) + np.sin(t)*wmat + (1-np.cos(t))*np.linalg.matrix_power(wmat,2)
-        trans = np.matmul(np.identity(3)-ewt, np.cross(w,v))
+        # ewt = np.identity(3) + np.sin(t)*wmat + (1-np.cos(t))*np.linalg.matrix_power(wmat,2)
+        # trans = np.matmul(np.identity(3)-ewt, np.cross(w,v))
 
-        est = np.column_stack((ewt, trans))
-        est = np.row_stack((est, np.array([0,0,0,1])))
+        # est = np.column_stack((ewt, trans))
+        # est = np.row_stack((est, np.array([0,0,0,1])))
 
-        T = np.matmul(T,est)
+        # T = np.matmul(T,est)
 
-        if idx ==1: 
-            print(wmat)
-            print(ewt)
-            print(trans)
-            print(T)
+        # if idx ==1: 
+        #     print(wmat)
+        #     print(ewt)
+        #     print(trans)
+        #     print(T)
+
+        est = expm(smat * t)
+        T = np.matmul(T, est)
     
     T = np.matmul(T,m_mat)
-    print(T)
+    pose = get_pose_from_T(T)
+    rpy = get_euler_angles_from_T(T)
+
+    return (pose[0], pose[1], pose[2], rpy[0])
 
 
 def to_w_matrix(w):
     wmat = np.array([[0, -w[2], w[1]],
                      [w[2], 0, -w[0]],
-                     [-w[1], w[0], 0]])
+                     [-w[1], w[0], 0]], dtype=DTYPE)
     return wmat
 
 
@@ -168,3 +177,87 @@ def IK_geometric(dh_params, pose):
                 configuration
     """
     pass
+
+def rot_to_quat(rot):
+    """
+    * Convert a coordinate transformation matrix to an orientation quaternion.
+    """
+    q = Quaternion()
+    r = rot.T.copy() # important
+    tr = np.trace(r)
+    if tr>0.0:
+        S = math.sqrt(tr + 1.0) * 2.0
+        q.w = 0.25 * S
+        q.x = (r[2,1] - r[1,2])/S
+        q.y = (r[0,2] - r[2,0])/S
+        q.z = (r[1,0] - r[0,1])/S
+
+    elif (r[0, 0] > r[1, 1]) and (r[0, 0] > r[2, 2]):
+        S = math.sqrt(1.0 + r[0,0] - r[1,1] - r[2,2]) * 2.0
+        q.w = (r[2,1] - r[1,2])/S
+        q.x = 0.25 * S
+        q.y = (r[0,1] + r[1,0])/S
+        q.z = (r[0,2] + r[2,0])/S
+
+    elif r[1,1]>r[2,2]:
+        S = math.sqrt(1.0 + r[1,1] -r[0,0] -r[2,2]) * 2.0
+        q.w = (r[0,2] - r[2,0])/S
+        q.x = (r[0,1] + r[1,0])/S
+        q.y = 0.25 * S
+        q.z = (r[1,2] + r[2,1])/S
+        
+    else:
+        S = math.sqrt(1.0 + r[2,2] - r[0,0] - r[1,1]) * 2.0
+        q.w = (r[1,0] - r[0,1])/S
+        q.x = (r[0,2] + r[2,0])/S
+        q.y = (r[1,2] + r[2,1])/S
+        q.z = 0.25 * S
+    
+    return q
+
+def quat_to_rpy(q) -> np.ndarray:
+    """
+    * Convert a quaternion to RPY. Return
+    * angles in (roll, pitch, yaw).
+    """
+    rpy = np.zeros((3,1), dtype=DTYPE)
+    as_ = np.min([-2.*(q.x*q.z-q.w*q.y),.99999])
+    # roll
+    rpy[0] = np.arctan2(2.*(q.y*q.z+q.w*q.x), q.w*q.w - q.x*q.x - q.y*q.y + q.z*q.z)
+    # pitch
+    rpy[1] = np.arcsin(as_)
+    # yaw
+    rpy[2] = np.arctan2(2.*(q.x*q.y+q.w*q.z), q.w*q.w + q.x*q.x - q.y*q.y - q.z*q.z)
+    return rpy
+
+def rot_to_rpy(R):
+    return quat_to_rpy(rot_to_quat(R))
+
+class Quaternion:
+    def __init__(self, w=1, x=0, y=0, z=0):
+        self.w = float(w)
+        self.x = float(x)
+        self.y = float(y)
+        self.z = float(z)
+        self._norm = np.sqrt(self.w*self.w+self.x*self.x+self.y*self.y+self.z*self.z, dtype=DTYPE)
+
+    def toNumpy(self):
+        """convert to an (4,1) numpy array"""
+        return np.array([self.w,self.x,self.y,self.z], dtype=DTYPE).reshape((4,1))
+    
+    def unit(self):
+        """return the unit quaternion"""
+        return Quaternion(self.w/self._norm,self.x/self._norm,self.y/self._norm,self.z/self._norm)
+
+    def conjugate(self):
+        return Quaternion(self.w, -self.x, -self.y, -self.z)
+    
+    def reverse(self):
+        """return the reverse rotation representation as the same as the transpose op of rotation matrix"""
+        return Quaternion(-self.w,self.x,self.y,self.z)
+
+    def inverse(self):
+        return Quaternion(self.w/(self._norm*self._norm),-self.x/(self._norm*self._norm),-self.y/(self._norm*self._norm),-self.z/(self._norm*self._norm))
+    
+    def __str__(self) -> str:
+        return '['+str(self.w)+', '+str(self.x)+', '+str(self.y)+', '+str(self.z)+']'

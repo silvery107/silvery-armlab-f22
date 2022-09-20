@@ -13,29 +13,34 @@ from kinematics import *
 from config_parse import *
 from copy import deepcopy
 
+np.set_printoptions(precision=3, suppress=True)
 if __name__ == '__main__':
-    ap = argparse.ArgumentParser()
-    ap.add_argument("-c", "--dhconfig", required=True, help="path to DH parameters csv file")
+    # ap = argparse.ArgumentParser()
+    # ap.add_argument("-c", "--dhconfig", required=True, help="path to DH parameters csv file")
 
-    args=vars(ap.parse_args())
+    # args=vars(ap.parse_args())
 
     passed = True
     vclamp = np.vectorize(clamp)
 
-    dh_params = parse_dh_param_file(args['dhconfig'])
+    dh_params = parse_dh_param_file("../config/rx200_dh.csv")
+    M_matrix, S_vectors = parse_pox_param_file("../config/rx200_pox.csv")
 
     ### Add arm configurations to test here
-    fk_angles = [[0.0,           0.0,            0.0,               0.0]]
+    fk_angles = np.array([[0.0,           0.0,            0.0,               0.0],
+                          [np.pi,           0.0,            0.0,               0.0]])
     
     print('Test FK')
     fk_poses = []
     for joint_angles in fk_angles:
         print('Joint angles:', joint_angles)
-        for i, _ in enumerate(joint_angles):
-            pose = get_pose_from_T(FK_dh(deepcopy(dh_params), joint_angles, i))
-            print('Link {} pose: {}'.format(i, pose))
-            if i == len(joint_angles) - 1:
-                fk_poses.append(pose)
+        # for i, _ in enumerate(joint_angles):
+        #     pose = get_pose_from_T(FK_dh(deepcopy(dh_params), joint_angles, i))
+        #     print('Link {} pose: {}'.format(i, pose))
+        #     if i == len(joint_angles) - 1:
+        #         fk_poses.append(pose)
+        pose = FK_pox(joint_angles, M_matrix, S_vectors)
+        print("Joint pose:  ", np.asarray(pose))
         print()
 
     print('Test IK')
