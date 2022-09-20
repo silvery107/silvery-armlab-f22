@@ -40,7 +40,8 @@ if __name__ == '__main__':
         #     if i == len(joint_angles) - 1:
         #         fk_poses.append(pose)
         pose = FK_pox(joint_angles, M_matrix, S_vectors)
-        print("Joint pose:  ", np.asarray(pose))
+        fk_poses.append(pose)
+        print("Joint pose:  ", pose)
         print()
 
     print('Test IK')

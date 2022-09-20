@@ -124,12 +124,6 @@ def FK_pox(joint_angles, m_mat, s_lst):
 
         # T = np.matmul(T,est)
 
-        # if idx ==1: 
-        #     print(wmat)
-        #     print(ewt)
-        #     print(trans)
-        #     print(T)
-
         est = expm(smat * t)
         T = np.matmul(T, est)
     
@@ -137,7 +131,7 @@ def FK_pox(joint_angles, m_mat, s_lst):
     pose = get_pose_from_T(T)
     rpy = get_euler_angles_from_T(T)
 
-    return (pose[0], pose[1], pose[2], rpy[0])
+    return np.array([pose[0], pose[1], pose[2], rpy[0]], dtype=DTYPE)
 
 
 def to_w_matrix(w):
