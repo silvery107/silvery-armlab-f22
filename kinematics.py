@@ -104,7 +104,38 @@ def FK_pox(joint_angles, m_mat, s_lst):
 
     @return     a 4-tuple (x, y, z, phi) representing the pose of the desired link
     """
-    pass
+    print(joint_angles)
+    T = np.identity(4).astype(float)
+    for idx, t in enumerate(joint_angles):
+        w = s_lst[idx,0:3]
+        v = s_lst[idx,3:]
+        
+        wmat = to_w_matrix(w)
+        smat = to_s_matrix(wmat,v)
+
+        ewt = np.identity(3) + np.sin(t)*wmat + (1-np.cos(t))*np.linalg.matrix_power(wmat,2)
+        trans = np.matmul(np.identity(3)-ewt, np.cross(w,v))
+
+        est = np.column_stack((ewt, trans))
+        est = np.row_stack((est, np.array([0,0,0,1])))
+
+        T = np.matmul(T,est)
+
+        if idx ==1: 
+            print(wmat)
+            print(ewt)
+            print(trans)
+            print(T)
+    
+    T = np.matmul(T,m_mat)
+    print(T)
+
+
+def to_w_matrix(w):
+    wmat = np.array([[0, -w[2], w[1]],
+                     [w[2], 0, -w[0]],
+                     [-w[1], w[0], 0]])
+    return wmat
 
 
 def to_s_matrix(w, v):
@@ -119,7 +150,9 @@ def to_s_matrix(w, v):
 
     @return     { description_of_the_return_value }
     """
-    pass
+    smat = np.column_stack((w, v))
+    smat = np.row_stack((smat, np.array([0,0,0,0])))
+    return smat
 
 
 def IK_geometric(dh_params, pose):

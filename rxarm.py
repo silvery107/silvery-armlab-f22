@@ -52,7 +52,7 @@ class RXArm(InterbotixRobot):
     """!
     @brief      This class describes a RXArm wrapper class for the rx200
     """
-    def __init__(self, dh_config_file=None):
+    def __init__(self, dh_config_file=None, pox_config_file=None):
         """!
         @brief      Constructs a new instance.
 
@@ -84,6 +84,9 @@ class RXArm(InterbotixRobot):
         #POX params
         self.M_matrix = []
         self.S_list = []
+        self.pox_config_file = pox_config_file
+        if (pox_config_file is not None):
+            self.M_matrix, self.S_list = RXArm.parse_pox_param_file(pox_config_file)
 
     def initialize(self):
         """!
@@ -206,7 +209,10 @@ class RXArm(InterbotixRobot):
 
         @return     0 if file was parsed, -1 otherwise 
         """
-        return -1
+        print("Parsing PoX config file...")
+        M_matrix, S_list = parse_pox_param_file(self.pox_config_file)
+        print("PoX config file parse exit.")
+        return M_matrix, S_list
 
     def parse_dh_param_file(self):
         print("Parsing DH config file...")
@@ -264,7 +270,7 @@ class RXArmThread(QThread):
 
 
 if __name__ == '__main__':
-    rxarm = RXArm()
+    rxarm = RXArm(pox_config_file="config/rx200_pox.csv")
     print(rxarm.joint_names)
     armThread = RXArmThread(rxarm)
     armThread.start()

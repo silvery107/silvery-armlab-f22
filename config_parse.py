@@ -18,7 +18,21 @@ def parse_dh_param_file(dh_config_file):
     return dh_params
 
 
-# TODO: parse a pox parameter file
+def parse_pox_param_file(pox_config_file):
+    assert(pox_config_file is not None)
+    f_line_contents = None
+    with open(pox_config_file, "r") as f:
+        f_line_contents = f.readlines()
+
+    assert(f.closed)
+    assert(f_line_contents is not None)
+    # maybe not the most efficient/clean/etc. way to do this, but should only have to be done once so NBD
+    M_matrix = np.asarray([line.split() for line in f_line_contents[1:5]])
+    M_matrix = M_matrix.astype(float)
+    S_list = np.asarray([line.split() for line in f_line_contents[6:]])
+    S_list = S_list.astype(float)
+    return M_matrix, S_list
+
 def parse_pox_param_file_yaml(pox_config_file):
     assert pox_config_file is not None
     data = None
@@ -28,3 +42,4 @@ def parse_pox_param_file_yaml(pox_config_file):
     M_matrix = np.asarray(data["M_matrix"]["data"], dtype=DTYPE).reshape((data["M_matrix"]["rows"], data["M_matrix"]["cols"]))
     screw_vectors = np.asarray(data["screw_vectors"]["data"], dtype=DTYPE).reshape((data["screw_vectors"]["rows"], data["screw_vectors"]["cols"]))
     return M_matrix, screw_vectors
+
