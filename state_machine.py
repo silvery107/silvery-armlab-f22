@@ -195,7 +195,9 @@ class StateMachine():
         joint_angles = IK_geometric([world_pos[0], 
                                     world_pos[1], 
                                     world_pos[2]+10, 
-                                    np.pi/2])
+                                    np.pi/2],
+                                    m_matrix=self.rxarm.M_mattrix,
+                                    s_list=self.rxarm.S_list)
         
         self.rxarm.go_to_home_pose(moving_time=2.0,
                                     accel_time=0.5,

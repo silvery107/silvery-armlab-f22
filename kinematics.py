@@ -188,7 +188,7 @@ def to_s_matrix(w, v):
     return smat
 
 
-def IK_geometric(pose, dh_params=None):
+def IK_geometric(pose, dh_params=None, m_matrix=None, s_list=None):
     """!
     @brief      Get all possible joint configs that produce the pose.
 
@@ -222,7 +222,19 @@ def IK_geometric(pose, dh_params=None):
     # assert t4 > 0
     t5 = 0 # TODO this should be set to block theta or 0
     joint_angles = np.array([t1, t2, t3, t4, t5]).reshape((1, -1))
-    return joint_angles
+
+    # !!! Test IK with FK
+    fk_pose = FK_pox(joint_angles, m_matrix, s_list)
+    vclamp = np.vectorize(clamp)
+    compare = vclamp(fk_pose - pose)
+    print('Pose: {} '.format(pose))
+    if np.allclose(compare, np.zeros_like(compare), rtol=1e-3, atol=1e-4):
+        print('FK Pose: {}'.format(fk_pose))
+        print('Pose matches with FK')
+        return joint_angles
+    else:
+        print('No match to the IK pose found!')
+        return np.zeros((1, 5))
 
 def rot_to_quat(rot):
     """
