@@ -76,7 +76,16 @@ def get_euler_angles_from_T(T):
 
     @return     The euler angles from T.
     """
-    return rot_to_rpy(T[:3, :3]).flatten()
+    R = T[:3, :3]
+    if abs(R[2, 2]) > 1:
+        phi = 0.0
+    else:
+        phi = np.arctan2(np.sqrt(1-R[2, 2]*R[2, 2]), R[2, 2])
+    
+    # print(phi)
+    # rpy = rot_to_rpy(T[:3, :3]).flatten()
+    # return rpy
+    return [0, abs(phi), 0]
 
 
 def get_pose_from_T(T):
@@ -107,7 +116,6 @@ def FK_pox(joint_angles, m_mat, s_lst):
 
     @return     a 4-tuple (x, y, z, phi) representing the pose of the desired link
     """
-    # print(joint_angles)
     T = np.identity(4, dtype=DTYPE)
     for idx, t in enumerate(joint_angles):
         w = s_lst[idx,0:3]
@@ -115,15 +123,6 @@ def FK_pox(joint_angles, m_mat, s_lst):
         
         wmat = to_w_matrix(w)
         smat = to_s_matrix(wmat,v)
-
-        # ewt = np.identity(3) + np.sin(t)*wmat + (1-np.cos(t))*np.linalg.matrix_power(wmat,2)
-        # trans = np.matmul(np.identity(3)-ewt, np.cross(w,v))
-
-        # est = np.column_stack((ewt, trans))
-        # est = np.row_stack((est, np.array([0,0,0,1])))
-
-        # T = np.matmul(T,est)
-
         est = expm(smat * t)
         T = np.matmul(T, est)
     
@@ -170,7 +169,29 @@ def IK_geometric(dh_params, pose):
     @return     All four possible joint configurations in a numpy array 4x4 where each row is one possible joint
                 configuration
     """
-    pass
+    x, y, z, phi = pose
+    l1 = 206.155
+    # l2 = 331
+    l2 = 408.575 - 50
+    base_offset = 104.57
+    x_c = np.sqrt(x*x + y*y)
+    y_c = z - base_offset
+    t1 = np.arctan2(y, x)
+    t2_offset = np.arctan2(50, 200)
+    t3_offset = np.pi/2 - t2_offset
+    t3 = - math.acos((x_c*x_c + y_c*y_c - l1*l1 - l2*l2)/(2*l1*l2))
+    t2 = np.arctan2(y_c, x_c) - np.arctan2(l2*np.sin(t3), l1 + l2*np.cos(t3))
+    t2 = np.pi/2 - t2
+    t2 -= t2_offset
+    t3 += t3_offset
+    t3 = -t3
+    
+    # t4 = 0 # TODO 
+    t4 = phi - (t2 + t3)
+    # assert t4 > 0
+    t5 = 0 # TODO this should be set to block theta or 0
+    joint_angles = np.array([t1, t2, t3, t4, t5]).reshape((1, -1))
+    return joint_angles
 
 def rot_to_quat(rot):
     """

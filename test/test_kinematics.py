@@ -12,12 +12,13 @@ os.sys.path.append(os.path.realpath(script_path + '/../'))
 from kinematics import *
 from config_parse import *
 from copy import deepcopy
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 
 np.set_printoptions(precision=3, suppress=True)
 if __name__ == '__main__':
     # ap = argparse.ArgumentParser()
     # ap.add_argument("-c", "--dhconfig", required=True, help="path to DH parameters csv file")
-
     # args=vars(ap.parse_args())
 
     passed = True
@@ -27,8 +28,8 @@ if __name__ == '__main__':
     M_matrix, S_vectors = parse_pox_param_file("../config/rx200_pox.csv")
 
     ### Add arm configurations to test here
-    fk_angles = np.array([[0.0,           0.0,            0.0,               0.0],
-                          [np.pi,           0.0,            0.0,               0.0]])
+    fk_angles = np.array([[0.0, 0.0, 0.0, 0.0, 0.0],
+                          [-np.pi/7, -np.pi/7, np.pi/6, 0.0, 0.0]])
     
     print('Test FK')
     fk_poses = []
@@ -48,6 +49,7 @@ if __name__ == '__main__':
     for pose, angles in zip(fk_poses, fk_angles):
         matching_angles = False
         print('Pose: {}'.format(pose))
+        print('Joint angles {}'.format(angles))
         options = IK_geometric(deepcopy(dh_params), pose)
         for i, joint_angles in enumerate(options):
             print('Option {}: {}'.format(i, joint_angles))
@@ -59,3 +61,10 @@ if __name__ == '__main__':
             print('No match to the FK angles found!')
             passed = False
         print()
+
+# fig = plt.figure()
+# ax = fig.add_subplot(111, projection='3d')
+# tgt_pose = fk_poses[1]
+
+# ax.plot3D([0, tgt_pose[0]], [0, tgt_pose[1]], [0, tgt_pose[2]])
+# plt.show()
