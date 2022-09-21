@@ -116,7 +116,7 @@ def get_euler_angles_from_T(T):
     # print(phi)
     # rpy = rot_to_rpy(T[:3, :3]).flatten()
     # return rpy
-    return [0, abs(phi), 0]
+    return np.array([0, abs(phi), 0], dtype=DTYPE)
 
 
 def get_pose_from_T(T):
@@ -130,7 +130,7 @@ def get_pose_from_T(T):
 
     @return     The pose from T.
     """
-    return T[:3, 3].flatten()
+    return T[:3, 3].flatten().astype(DTYPE)
 
 
 def FK_pox(joint_angles, m_mat, s_lst):
@@ -221,23 +221,25 @@ def IK_geometric(pose, dh_params=None, m_matrix=None, s_list=None):
     t4 = phi - (t2 + t3)
     # assert t4 > 0
     t5 = 0 # TODO this should be set to block theta or 0
-    joint_angles = np.array([t1, t2, t3, t4, t5]).reshape((1, -1))
+    joint_angles = [t1, t2, t3, t4, t5]#.reshape((1, -1))
+    print("IK angles {}".format(joint_angles))
 
     if m_matrix is None or s_list is None:
         return joint_angles
 
     # !!! Test IK with FK
     fk_pose = FK_pox(joint_angles, m_matrix, s_list)
-    vclamp = np.vectorize(clamp)
-    compare = vclamp(fk_pose - pose)
+    # vclamp = np.vectorize(clamp)
+    # compare = vclamp(fk_pose - pose)
+    compare = fk_pose - pose
     print('Pose: {} '.format(pose))
-    if np.allclose(compare, np.zeros_like(compare), rtol=1e-3, atol=1e-4):
-        print('FK Pose: {}'.format(fk_pose))
+    print('FK Pose: {}'.format(fk_pose))
+    if np.allclose(compare, np.zeros_like(compare), rtol=1e-1, atol=1e-1):
         print('Pose matches with FK')
         return joint_angles
     else:
-        print('No match to the IK pose found! Go home!')
-        return np.zeros((1, 5))
+        print('No match to the FK pose found! Go home!')
+        return [0, 0, 0, 0, 0]
 
 def rot_to_quat(rot):
     """

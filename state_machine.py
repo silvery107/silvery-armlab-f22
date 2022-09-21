@@ -91,6 +91,11 @@ class StateMachine():
         if self.next_state == "play":
             self.play()
 
+        if self.next_state == "pick":
+            self.pick()
+
+        if self.next_state == "place":
+            self.place()
 
     """Functions run for each state"""
 
@@ -191,14 +196,21 @@ class StateMachine():
         self.camera.new_click = False
         pt = self.camera.last_click
         z = self.camera.DepthFrameRaw[pt[1]][pt[0]]
-        world_pos = self.camera.coor_pixel_to_world(pt[0], pt[1], z)
-        joint_angles = IK_geometric([world_pos[0], 
-                                    world_pos[1], 
-                                    world_pos[2]+10, 
+
+        # test_pose = [ 228.105, -228.105, -57.76, 1.047]
+        # joint_angles = IK_geometric(test_pose, m_matrix=self.rxarm.M_matrix, s_list=self.rxarm.S_list)
+
+        world_pos = self.camera.coor_pixel_to_world(pt[0], pt[1], z).flatten().tolist()
+
+        joint_angles = IK_geometric([world_pos[1], 
+                                    -world_pos[0], 
+                                    world_pos[2]+150, 
                                     np.pi/2],
-                                    m_matrix=self.rxarm.M_mattrix,
+                                    m_matrix=self.rxarm.M_matrix,
                                     s_list=self.rxarm.S_list)
-        
+        joint_angles[2] = - joint_angles[2]
+        joint_angles[3] = - joint_angles[3]
+        # move
         self.rxarm.go_to_home_pose(moving_time=2.0,
                                     accel_time=0.5,
                                     blocking=True)
@@ -223,11 +235,17 @@ class StateMachine():
         self.camera.new_click = False
         pt = self.camera.last_click
         z = self.camera.DepthFrameRaw[pt[1]][pt[0]]
-        world_pos = self.camera.coor_pixel_to_world(pt[0], pt[1], z)
-        joint_angles = IK_geometric([world_pos[0], 
-                                    world_pos[1], 
-                                    world_pos[2]+10, 
-                                    np.pi/2])
+
+        world_pos = self.camera.coor_pixel_to_world(pt[0], pt[1], z).flatten().tolist()
+
+        joint_angles = IK_geometric([world_pos[1], 
+                                    -world_pos[0], 
+                                    world_pos[2]+150, 
+                                    np.pi/2],
+                                    m_matrix=self.rxarm.M_matrix,
+                                    s_list=self.rxarm.S_list)
+        joint_angles[2] = - joint_angles[2]
+        joint_angles[3] = - joint_angles[3]
 
         self.rxarm.set_joint_positions(joint_angles,
                                         moving_time=2.0,

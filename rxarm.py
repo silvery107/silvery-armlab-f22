@@ -78,13 +78,13 @@ class RXArm(InterbotixRobot):
         self.effort_fb = None
         # DH Params
         self.dh_params = []
-        self.dh_config_file = dh_config_file
+        # self.dh_config_file = dh_config_file
         if (dh_config_file is not None):
             self.dh_params = self.parse_dh_param_file(dh_config_file)
         #POX params
         self.M_matrix = []
         self.S_list = []
-        self.pox_config_file = pox_config_file
+        # self.pox_config_file = pox_config_file
         if (pox_config_file is not None):
             self.M_matrix, self.S_list = self.parse_pox_param_file(pox_config_file)
 
@@ -203,20 +203,20 @@ class RXArm(InterbotixRobot):
         """
         return [0, 0, 0, 0]
 
-    def parse_pox_param_file(self):
+    def parse_pox_param_file(self, pox_config_file):
         """!
         @brief      TODO Parse a PoX config file
 
         @return     0 if file was parsed, -1 otherwise 
         """
         print("Parsing PoX config file...")
-        M_matrix, S_list = parse_pox_param_file(self.pox_config_file)
+        M_matrix, S_list = parse_pox_param_file(pox_config_file)
         print("PoX config file parse exit.")
         return M_matrix, S_list
 
-    def parse_dh_param_file(self):
+    def parse_dh_param_file(self, dh_config_file):
         print("Parsing DH config file...")
-        dh_params = parse_dh_param_file(self.dh_config_file)
+        dh_params = parse_dh_param_file(dh_config_file)
         print("DH config file parse exit.")
         return dh_params
 

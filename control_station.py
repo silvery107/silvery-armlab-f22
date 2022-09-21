@@ -61,10 +61,12 @@ class Gui(QMainWindow):
         """Objects Using Other Classes"""
         self.camera = Camera()
         print("Creating rx arm...")
-        if (dh_config_file is not None):
-            self.rxarm = RXArm(dh_config_file=dh_config_file)
-        else:
-            self.rxarm = RXArm()
+        # if (dh_config_file is not None):
+        #     self.rxarm = RXArm(dh_config_file=dh_config_file)
+        # else:
+        #     self.rxarm = RXArm()
+        
+        self.rxarm = RXArm(pox_config_file="config/rx200_pox.csv")
         print("Done creating rx arm instance.")
         self.sm = StateMachine(self.rxarm, self.camera)
         """
@@ -104,8 +106,8 @@ class Gui(QMainWindow):
         self.ui.btnUser7.clicked.connect(partial(nxt_if_arm_init, 'detect'))
         self.ui.btnUser8.setText('Click Grab')
         self.ui.btnUser8.clicked.connect(partial(nxt_if_arm_init, 'pick'))
-        self.ui.btnUser8.setText('Click Place')
-        self.ui.btnUser8.clicked.connect(partial(nxt_if_arm_init, 'place'))
+        self.ui.btnUser9.setText('Click Place')
+        self.ui.btnUser9.clicked.connect(partial(nxt_if_arm_init, 'place'))
 
         # Sliders
         for sldr in self.joint_sliders:
