@@ -35,13 +35,13 @@ if __name__ == '__main__':
     fk_poses = []
     for joint_angles in fk_angles:
         print('Joint angles:', joint_angles)
-        # for i, _ in enumerate(joint_angles):
-        #     pose = get_pose_from_T(FK_dh(deepcopy(dh_params), joint_angles, i))
-        #     print('Link {} pose: {}'.format(i, pose))
-        #     if i == len(joint_angles) - 1:
-        #         fk_poses.append(pose)
-        pose = FK_pox(joint_angles, M_matrix, S_vectors)
-        fk_poses.append(pose)
+        for i, _ in enumerate(joint_angles):
+            pose = FK_dh(deepcopy(dh_params), joint_angles, i)
+            print('Link {} pose: {}'.format(i, pose))
+            if i == len(joint_angles) - 1:
+                fk_poses.append(pose)
+        # pose = FK_pox(joint_angles, M_matrix, S_vectors)
+        # fk_poses.append(pose)
         print("Joint pose:  ", pose)
         print()
 
@@ -50,9 +50,9 @@ if __name__ == '__main__':
         matching_angles = False
         print('Pose: {}'.format(pose))
         print('Joint angles {}'.format(angles))
-        options = IK_geometric(pose, deepcopy(dh_params))
+        options = [IK_geometric(pose, deepcopy(dh_params))]
         for i, joint_angles in enumerate(options):
-            print('Option {}: {}'.format(i, joint_angles))
+            # print('Option {}: {}'.format(i, joint_angles))
             compare = vclamp(joint_angles - angles)
             if np.allclose(compare, np.zeros_like(compare), rtol=1e-3, atol=1e-4):
                 print('Option {} matches angles used in FK'.format(i))
