@@ -223,6 +223,9 @@ def IK_geometric(pose, dh_params=None, m_matrix=None, s_list=None):
     t5 = 0 # TODO this should be set to block theta or 0
     joint_angles = np.array([t1, t2, t3, t4, t5]).reshape((1, -1))
 
+    if m_matrix is None or s_list is None:
+        return joint_angles
+
     # !!! Test IK with FK
     fk_pose = FK_pox(joint_angles, m_matrix, s_list)
     vclamp = np.vectorize(clamp)
@@ -233,7 +236,7 @@ def IK_geometric(pose, dh_params=None, m_matrix=None, s_list=None):
         print('Pose matches with FK')
         return joint_angles
     else:
-        print('No match to the IK pose found!')
+        print('No match to the IK pose found! Go home!')
         return np.zeros((1, 5))
 
 def rot_to_quat(rot):
