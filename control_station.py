@@ -102,6 +102,10 @@ class Gui(QMainWindow):
         self.ui.btnUser6.clicked.connect(partial(nxt_if_arm_init, 'play'))
         self.ui.btnUser7.setText('Detect Blocks')
         self.ui.btnUser7.clicked.connect(partial(nxt_if_arm_init, 'detect'))
+        self.ui.btnUser8.setText('Click Grab')
+        self.ui.btnUser8.clicked.connect(partial(nxt_if_arm_init, 'pick'))
+        self.ui.btnUser8.setText('Click Place')
+        self.ui.btnUser8.clicked.connect(partial(nxt_if_arm_init, 'place'))
 
         # Sliders
         for sldr in self.joint_sliders:

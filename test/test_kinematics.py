@@ -50,7 +50,7 @@ if __name__ == '__main__':
         matching_angles = False
         print('Pose: {}'.format(pose))
         print('Joint angles {}'.format(angles))
-        options = IK_geometric(deepcopy(dh_params), pose)
+        options = IK_geometric(pose, deepcopy(dh_params))
         for i, joint_angles in enumerate(options):
             print('Option {}: {}'.format(i, joint_angles))
             compare = vclamp(joint_angles - angles)

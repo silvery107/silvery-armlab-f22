@@ -4,6 +4,7 @@ The state machine that implements the logic.
 from PyQt4.QtCore import (QThread, Qt, pyqtSignal, pyqtSlot, QTimer)
 import time
 import numpy as np
+from kinematics import IK_geometric
 import rospy
 import cv2
 from utils import *
@@ -181,6 +182,62 @@ class StateMachine():
         if not self.next_state == "estop":
             self.next_state = "idle"
 
+    def pick(self):
+        self.status_message = "State: Pick - Click to pick"
+        self.current_state = "pick"
+        while not self.camera.new_click:
+            rospy.sleep(0.1)
+        
+        self.camera.new_click = False
+        pt = self.camera.last_click
+        z = self.camera.DepthFrameRaw[pt[1]][pt[0]]
+        world_pos = self.camera.coor_pixel_to_world(pt[0], pt[1], z)
+        joint_angles = IK_geometric([world_pos[0], 
+                                    world_pos[1], 
+                                    world_pos[2]+10, 
+                                    np.pi/2])
+        
+        self.rxarm.go_to_home_pose(moving_time=2.0,
+                                    accel_time=0.5,
+                                    blocking=True)
+        self.rxarm.open_gripper()
+        self.rxarm.set_joint_positions(joint_angles,
+                                        moving_time=2.0,
+                                        accel_time=0.5,
+                                        blocking=True)
+        
+        self.rxarm.close_gripper()
+        self.rxarm.gripper_state = False
+
+        if not self.next_state == "estop":
+            self.next_state = "idle"
+
+    def place(self):
+        self.status_message = "State: Place - Click to place"
+        self.current_state = "place"
+        while not self.camera.new_click:
+            rospy.sleep(0.1)
+        
+        self.camera.new_click = False
+        pt = self.camera.last_click
+        z = self.camera.DepthFrameRaw[pt[1]][pt[0]]
+        world_pos = self.camera.coor_pixel_to_world(pt[0], pt[1], z)
+        joint_angles = IK_geometric([world_pos[0], 
+                                    world_pos[1], 
+                                    world_pos[2]+10, 
+                                    np.pi/2])
+
+        self.rxarm.set_joint_positions(joint_angles,
+                                        moving_time=2.0,
+                                        accel_time=0.5,
+                                        blocking=True)
+        
+        self.rxarm.open_gripper()
+        self.rxarm.gripper_state = True
+
+        if not self.next_state == "estop":
+            self.next_state = "idle"
+
     def calibrate(self):
         """!
         @brief      Gets the user input to perform the calibration
@@ -221,7 +278,6 @@ class StateMachine():
         self.next_state = "idle"
         
 
-    """ TODO """
     def detect(self):
         """!
         @brief      Detect the blocks
