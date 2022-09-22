@@ -22,10 +22,11 @@ from scipy import stats
 class BlockDetections():
     def __init__(self):
         self.detected_num = 0
+        self.small_num = 0
         self.contours = None
-        self.colors = None
+        self.colors = None # range from 0 to 6 w.r. to rainbow color order
         self.thetas = None
-        self.sizes = None
+        self.sizes = None # 0 for small and 1 for large
         self.uvds = None
         self.xyzs = None
         self.all_contours = None
@@ -35,18 +36,43 @@ class BlockDetections():
         self.uvds = np.array(self.uvds, dtype=int)
         self.xyzs = np.array(self.xyzs, dtype=DTYPE)
         self.detected_num = len(self.contours)
+        self.sort()
         # self.colors = 
         # self.thetas = thetas
 
     def reset(self):
         self.detected_num = 0
+        self.small_num = 0
         self.contours = []
-        self.sizes = []
         self.colors = []
         self.thetas = []
+        self.sizes = []
         self.uvds = []
         self.xyzs = []
         self.all_contours = None
+
+    def _sort_by_idx(self, indices, begin, end):
+        self.contours[begin:end] = self.contours[begin:end][indices]
+        self.colors[begin:end] = self.colors[begin:end][indices]
+        self.thetas[begin:end] = self.thetas[begin:end][indices]
+        self.sizes[begin:end] = self.sizes[begin:end][indices]
+        self.uvds[begin:end] = self.uvds[begin:end][indices]
+        self.xyzs[begin:end] = self.xyzs[begin:end][indices]
+
+    def sort(self):
+        """
+        Sort blocks by color and size
+        size: small to large
+        color: rainbow color order
+        """
+        small_to_large = np.argsort(self.sizes)
+        self._sort_by_idx(small_to_large, 0, self.detected_num)
+        small_num = np.bincount(self.sizes)[0]
+        s_rainbow_order = np.argsort(self.colors[0:small_num])
+        self._sort_by_idx(s_rainbow_order, 0, small_num)
+        l_rainbow_order = np.argsort(self.colors[small_num:])
+        self._sort_by_idx(l_rainbow_order, small_num, self.detected_num)
+        self.small_num = small_num
 
 
 class Camera():
@@ -93,7 +119,7 @@ class Camera():
                                         [147, 45, 70]],
                                         dtype=np.uint8)
         self.color_lab_mean = cv2.cvtColor(self.color_rgb_mean[:,None,:], cv2.COLOR_RGB2LAB).squeeze()
-
+        self.size_id = ["small", "large"]
 
         self.loadCameraCalibration("config/camera_calib.yaml")
         # TODO
@@ -110,8 +136,8 @@ class Camera():
             return
         for color, pixel, point, size in zip(self.block_detections.colors, self.block_detections.uvds, self.block_detections.xyzs, self.block_detections.sizes):
             cx, cy = pixel[:2]
-            cv2.putText(self.ProcessVideoFrame, color, (cx-30, cy+30), self.font, 0.5, (0,0,0), thickness=2)
-            cv2.putText(self.ProcessVideoFrame, size, (cx-10, cy+30), self.font, 0.5, (0,0,0), thickness=2)
+            cv2.putText(self.ProcessVideoFrame, self.color_id[color], (cx-30, cy+30), self.font, 0.5, (0,0,0), thickness=2)
+            cv2.putText(self.ProcessVideoFrame, self.size_id[size], (cx-10, cy+30), self.font, 0.5, (0,0,0), thickness=2)
             cv2.putText(self.ProcessVideoFrame, "+", (cx-12, cy+8), self.font, 1, (255,255,255), thickness=2)
             # cv2.putText(self.VideoFrame, str(int(theta)), (cx, cy), self.font, 0.5, (255,255,255), thickness=2)
             cv2.putText(self.ProcessVideoFrame, "%.0f"%(point[2]), (cx-20, cy+55), self.font, 0.5, (0,0,0), thickness=1)
@@ -284,10 +310,11 @@ class Camera():
             cx = int(M['m10']/M['m00'])
             cy = int(M['m01']/M['m00'])
             cz = self.ProcessDepthFrameRaw[cy, cx]
+            # !!! size classification: attention to this moment threshold
             if M["m00"] < 1200:
-                self.block_detections.sizes.append(["small"])
+                self.block_detections.sizes.append(0) # 0 for small
             else:
-                self.block_detections.sizes.append(["large"])
+                self.block_detections.sizes.append(1) # 1 for large
             self.block_detections.uvds.append([cx, cy, cz])
             self.block_detections.xyzs.append(self.coor_pixel_to_world(cx, cy, cz))
             self.block_detections.contours.append(contours_new_valid)
@@ -303,7 +330,10 @@ class Camera():
         # dist = self.color_rgb_mean - mean
         dist = self.color_lab_mean - mean
         dist_norm = np.linalg.norm(dist, axis=1)
-        return self.color_id[np.argmin(dist_norm)]
+
+        # * Let's directly return color index for easy sorting
+        # return self.color_id[np.argmin(dist_norm)]
+        return np.argmin(dist_norm)
 
     def coor_pixel_to_world(self, u, v, z):
         index = np.array([u, v, 1]).reshape((3,1))
