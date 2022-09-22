@@ -349,8 +349,8 @@ if __name__ == '__main__':
     shim = GazeboShim()
 
     realsense_pose = Pose()
-    realsense_pose.position.x = 0
-    realsense_pose.position.y = 0
+    realsense_pose.position.x = +0.12
+    realsense_pose.position.y = +0.06
     realsense_pose.position.z = 1.0
     quat = euler_to_quaternion(0.0, 3.1415 / 2, 0.0)
     realsense_pose.orientation.x = quat[0]
