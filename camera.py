@@ -137,13 +137,14 @@ class Camera():
         cv2.rectangle(self.ProcessVideoFrame, (575,400),(750,720), (255, 0, 0), 2)
         if self.block_detections.detected_num < 1:
             return
-        for color, pixel, point, size in zip(self.block_detections.colors, self.block_detections.uvds, self.block_detections.xyzs, self.block_detections.sizes):
+        for idx, (color, pixel, point, size) in enumerate(zip(self.block_detections.colors, self.block_detections.uvds, self.block_detections.xyzs, self.block_detections.sizes)):
             cx, cy = pixel[:2]
-            cv2.putText(self.ProcessVideoFrame, self.color_id[color], (cx-30, cy+30), self.font, 0.5, (255,255,255), thickness=2)
-            cv2.putText(self.ProcessVideoFrame, self.size_id[size], (cx-30, cy+45), self.font, 0.5, (255,255,255), thickness=2)
-            cv2.putText(self.ProcessVideoFrame, "+", (cx-12, cy+8), self.font, 1, (255,255,255), thickness=2)
-            # cv2.putText(self.VideoFrame, str(int(theta)), (cx, cy), self.font, 0.5, (255,255,255), thickness=2)
-            cv2.putText(self.ProcessVideoFrame, "%.0f"%(point[2]), (cx-20, cy+55), self.font, 0.5, (255,255,255), thickness=1)
+            cv2.putText(self.ProcessVideoFrame, self.color_id[color], (cx-30, cy+30), self.font, 0.5, (0,0,0), thickness=2)
+            cv2.putText(self.ProcessVideoFrame, self.size_id[size], (cx-30, cy+45), self.font, 0.5, (0,0,0), thickness=2)
+            cv2.putText(self.ProcessVideoFrame, "+", (cx-12, cy+8), self.font, 1, (0,0,0), thickness=2)
+            cv2.putText(self.ProcessVideoFrame, str(idx), (cx-30, cy+75), self.font, 1, (0,0,0), thickness=2)
+            # cv2.putText(self.VideoFrame, str(int(theta)), (cx, cy), self.font, 0.5, (0,0,0), thickness=2)
+            cv2.putText(self.ProcessVideoFrame, "%.0f"%(point[2]), (cx-20, cy+55), self.font, 0.5, (0,0,0), thickness=2)
 
         cv2.drawContours(self.ProcessVideoFrame, self.block_detections.all_contours, -1, (255, 0, 0), 1)
         cv2.drawContours(self.ProcessVideoFrame, self.block_detections.contours, -1, (0, 0, 255), 1)
@@ -314,7 +315,6 @@ class Camera():
             cy = int(M['m01']/M['m00'])
             cz = self.ProcessDepthFrameRaw[cy, cx]
             # !!! size classification: attention to this moment threshold
-            print(M["m00"])
             if M["m00"] < 1000:
                 self.block_detections.sizes.append(0) # 0 for small
             else:
