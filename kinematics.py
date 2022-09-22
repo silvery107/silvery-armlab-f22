@@ -158,10 +158,10 @@ def FK_pox(joint_angles, m_mat, s_lst):
         T = np.matmul(T, est)
     
     T = np.matmul(T,m_mat)
-    rot = np.array([[0,-1,0,0],
-                    [1,0,0,0],
-                    [0,0,1,0],
-                    [0,0,0,1]])
+    rot = np.array([[0, -1, 0, 0],
+                    [1, 0, 0, 0],
+                    [0, 0, 1, 0],
+                    [0, 0, 0, 1]])
     T = np.matmul(rot,T)
     pose = get_pose_from_T(T)
     return pose
@@ -217,64 +217,40 @@ def IK_geometric(pose, dh_params=None, m_matrix=None, s_list=None):
     # r: orientation of l4 w.r.t. origion
     r = np.array([-np.sin(t1)*np.cos(phi), np.cos(t1)*np.cos(phi), -np.sin(phi)])
     xc, yc, zc = pose[0:3] - l4*r # xyz of the wrist (t4)
-    print((xc,yc,zc))
+    # print((xc,yc,zc))
+
+    r = np.sqrt(xc*xc + yc*yc)   # (r, s) are planar xy of the wrist 
+    s = zc - l1
+    # print((r,s))
+    
+    # two cases for t3: t3 = t3; t3 = -t3
+    t3 = - np.arccos((r*r + s*s - l2*l2 - l3*l3)/(2*l2*l3))
+    t2 = np.arctan2(s, r) - np.arctan2(l3*np.sin(t3), l2 + l3*np.cos(t3)) # TODO something to do with offset
+    
+    # t3 = t3 + t_offset - np.pi/2 # offset
+    t3 += np.pi/2 -t_offset
+    t3 = -t3
+    t2 = np.pi/2 - t_offset - t2 # offset
+
+    t4 = phi - (t2 + t3) # by geometry
+    # assert t4 > 0
 
     t5 = 0 # TODO 
     # a. vertical pick: depends on block orientation; 
     # b. hori. pick: 0 
 
-    r = np.sqrt(xc*xc + yc*yc)   # (r, s) are planar xy of the wrist 
-    s = zc - l1
-    print((r,s))
-    
-    # two cases for t3: t3 = t3; t3 = -t3
-    t3 = np.arccos((r*r + s*s - l2*l2 - l3*l3)/(2*l2*l3))
-    t2 = np.arctan2(s, r) - np.arctan2(l3*np.sin(t3), l2 + l3*np.cos(t3)) # TODO something to do with offset
-    
-    t3 = t3 + t_offset - np.pi/2 # offset
-    t2 = np.pi/2 - t_offset - t2 # offset
-
-    t4 = phi - (t2 + t3) # by geometry
-
     joint_angles = [t1, t2, t3, t4, t5]#.reshape((1, -1))
-    print(joint_angles)
-
-
-    # x, y, z, phi = pose
-    # l1 = 206.155
-    # # l2 = 331
-    # l2 = 408.575 - 50
-    # base_offset = 104.57
-    # x_c = np.sqrt(x*x + y*y)
-    # y_c = z - base_offset
-    # t1 = np.arctan2(y, x)
-    # t2_offset = np.arctan2(50, 200)
-    # t3_offset = np.pi/2 - t2_offset
-    # t3 = - math.acos((x_c*x_c + y_c*y_c - l1*l1 - l2*l2)/(2*l1*l2))
-    # t2 = np.arctan2(y_c, x_c) - np.arctan2(l2*np.sin(t3), l1 + l2*np.cos(t3))
-    # t2 = np.pi/2 - t2
-    # t2 -= t2_offset
-    # t3 += t3_offset
-    # t3 = -t3
-    
-    # # t4 = 0 # TODO 
-    # t4 = phi - (t2 + t3)
-    # # assert t4 > 0
-    # t5 = 0 # TODO this should be set to block theta or 0
-    # joint_angles = [t1, t2, t3, t4, t5]#.reshape((1, -1))
-    # print("IK angles {}".format(joint_angles))
-
+    # print(joint_angles)
 
     if m_matrix is None or s_list is None:
         return joint_angles
 
     # !!! Test IK with FK
+    print("IK angles {}".format(joint_angles))
     fk_pose = FK_pox(joint_angles, m_matrix, s_list)
-    # vclamp = np.vectorize(clamp)
-    # compare = vclamp(fk_pose - pose)
     compare = fk_pose - pose
-    print('Pose: {} '.format(pose))
-    print('FK Pose: {}'.format(fk_pose))
+    print('Tgt Pose: {} '.format(pose))
+    print('FK Pose:  {}'.format(fk_pose))
     if np.allclose(compare, np.zeros_like(compare), rtol=1e-1, atol=1e-1):
         print('Pose matches with FK')
         return joint_angles
