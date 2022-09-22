@@ -25,6 +25,7 @@ class BlockDetections():
         self.contours = None
         self.colors = None
         self.thetas = None
+        self.sizes = None
         self.uvds = None
         self.xyzs = None
         self.all_contours = None
@@ -40,6 +41,7 @@ class BlockDetections():
     def reset(self):
         self.detected_num = 0
         self.contours = []
+        self.sizes = []
         self.colors = []
         self.thetas = []
         self.uvds = []
@@ -106,9 +108,10 @@ class Camera():
         cv2.rectangle(self.ProcessVideoFrame, (575,400),(750,720), (255, 0, 0), 2)
         if self.block_detections.detected_num < 1:
             return
-        for color, pixel, point in zip(self.block_detections.colors, self.block_detections.uvds, self.block_detections.xyzs):
+        for color, pixel, point, size in zip(self.block_detections.colors, self.block_detections.uvds, self.block_detections.xyzs, self.block_detections.sizes):
             cx, cy = pixel[:2]
             cv2.putText(self.ProcessVideoFrame, color, (cx-30, cy+30), self.font, 0.5, (0,0,0), thickness=2)
+            cv2.putText(self.ProcessVideoFrame, size, (cx-10, cy+30), self.font, 0.5, (0,0,0), thickness=2)
             cv2.putText(self.ProcessVideoFrame, "+", (cx-12, cy+8), self.font, 1, (255,255,255), thickness=2)
             # cv2.putText(self.VideoFrame, str(int(theta)), (cx, cy), self.font, 0.5, (255,255,255), thickness=2)
             cv2.putText(self.ProcessVideoFrame, "%.0f"%(point[2]), (cx-20, cy+55), self.font, 0.5, (0,0,0), thickness=1)
@@ -281,6 +284,10 @@ class Camera():
             cx = int(M['m10']/M['m00'])
             cy = int(M['m01']/M['m00'])
             cz = self.ProcessDepthFrameRaw[cy, cx]
+            if M["m00"] < 1200:
+                self.block_detections.sizes.append(["small"])
+            else:
+                self.block_detections.sizes.append(["large"])
             self.block_detections.uvds.append([cx, cy, cz])
             self.block_detections.xyzs.append(self.coor_pixel_to_world(cx, cy, cz))
             self.block_detections.contours.append(contours_new_valid)
