@@ -191,6 +191,7 @@ class StateMachine():
     def pick(self):
         self.status_message = "State: Pick - Click to pick"
         self.current_state = "pick"
+        self.camera.new_click = False
         while not self.camera.new_click:
             rospy.sleep(0.1)
         
@@ -232,6 +233,7 @@ class StateMachine():
         if not reachable_high or not reachable_low:
             if not self.next_state == "estop":
                 self.next_state = "idle"
+            print("Clicked point is unreachable, remain idle!!!")
             return
 
         # 1. go to home pose
@@ -243,14 +245,11 @@ class StateMachine():
             self.rxarm.gripper_state = True
 
         # 2. go to point above target pose with waist angle move first
-        waist_first = np.zeros_like(joint_angles_1)
-        waist_first[0] = joint_angles_1[0]
-        self.rxarm.set_joint_positions(waist_first,
-                                        moving_time=2.0,
-                                        accel_time=0.5,
-                                        blocking=True)
+
+        self.rxarm.set_single_joint_position("waist", joint_angles_1[0], moving_time=2.0, accel_time=0.1, blocking=True)
+
         self.rxarm.set_joint_positions(joint_angles_1,
-                                        moving_time=2.0,
+                                        moving_time=1.5,
                                         accel_time=0.5,
                                         blocking=True)
 
@@ -264,7 +263,7 @@ class StateMachine():
         
         # 4. raise to point above target point
         self.rxarm.set_joint_positions(joint_angles_1,
-                                        moving_time=2.0,
+                                        moving_time=1.0,
                                         accel_time=0.5,
                                         blocking=True)
 
@@ -274,6 +273,7 @@ class StateMachine():
     def place(self):
         self.status_message = "State: Place - Click to place"
         self.current_state = "place"
+        self.camera.new_click = False
         while not self.camera.new_click:
             rospy.sleep(0.1)
         
@@ -315,18 +315,14 @@ class StateMachine():
         if not reachable_high or not reachable_low:
             if not self.next_state == "estop":
                 self.next_state = "idle"
+            print("Clicked point is unreachable, remain idle!!!")
             return
 
         # 1. go to point above target pose with waist angle move first
-        waist_first = np.zeros_like(joint_angles_1)
-        waist_first[0] = joint_angles_1[0]
-        waist_first[-2] = joint_angles_1[-2]
-        self.rxarm.set_joint_positions(waist_first,
-                                        moving_time=2.0,
-                                        accel_time=0.5,
-                                        blocking=True)
+        self.rxarm.set_single_joint_position("waist", joint_angles_1[0], moving_time=2.0, accel_time=0.1, blocking=True)
+
         self.rxarm.set_joint_positions(joint_angles_1,
-                                        moving_time=2.0,
+                                        moving_time=1.5,
                                         accel_time=0.5,
                                         blocking=True)
 
@@ -340,7 +336,7 @@ class StateMachine():
         
         # 3. raise to point above target point
         self.rxarm.set_joint_positions(joint_angles_1,
-                                        moving_time=2.0,
+                                        moving_time=1.0,
                                         accel_time=0.5,
                                         blocking=True)
 
