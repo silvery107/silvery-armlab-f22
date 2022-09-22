@@ -237,7 +237,7 @@ def IK_geometric(pose, dh_params=None, m_matrix=None, s_list=None):
     xc, yc, zc = pose[0:3] - l4*l4_unit # xyz of the wrist (t4)
     # print((xc,yc,zc))
     if np.sqrt(xc*xc + yc*yc + (zc - l1)*(zc - l1)) > (l2 + l3):
-        print("Pose can't reach!!! Go home!!")
+        print("Pose is unreachable!!! Cannot form a triangle.")
         return False, [0, 0, 0, 0, 0]
 
     r = np.sqrt(xc*xc + yc*yc)   # (r, s) are planar xy of the wrist 
@@ -275,7 +275,7 @@ def IK_geometric(pose, dh_params=None, m_matrix=None, s_list=None):
         print('Pose matches with FK')
         return True, joint_angles
     else:
-        print('No match to the FK pose found! Go home!')
+        print('No match to the FK pose found!!')
         return False, [0, 0, 0, 0, 0]
 
 def rot_to_quat(rot):
