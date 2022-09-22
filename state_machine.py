@@ -202,24 +202,28 @@ class StateMachine():
 
         world_pos = self.camera.coor_pixel_to_world(pt[0], pt[1], z).flatten().tolist()
 
-        joint_angles = IK_geometric([world_pos[1], 
-                                    -world_pos[0], 
+        joint_angles = IK_geometric([world_pos[0], 
+                                    world_pos[1], 
                                     world_pos[2]+150, 
                                     np.pi/2],
                                     m_matrix=self.rxarm.M_matrix,
                                     s_list=self.rxarm.S_list)
         joint_angles[2] = - joint_angles[2]
         joint_angles[3] = - joint_angles[3]
-        # move
+
+        # go to home pose and open gripper
         self.rxarm.go_to_home_pose(moving_time=2.0,
                                     accel_time=0.5,
                                     blocking=True)
-        self.rxarm.open_gripper()
+        if not self.rxarm.gripper_state:
+            self.rxarm.open_gripper()
+            self.rxarm.gripper_state = True
+
+        # go to target pose and close gripper
         self.rxarm.set_joint_positions(joint_angles,
                                         moving_time=2.0,
                                         accel_time=0.5,
                                         blocking=True)
-        
         self.rxarm.close_gripper()
         self.rxarm.gripper_state = False
 
@@ -238,8 +242,8 @@ class StateMachine():
 
         world_pos = self.camera.coor_pixel_to_world(pt[0], pt[1], z).flatten().tolist()
 
-        joint_angles = IK_geometric([world_pos[1], 
-                                    -world_pos[0], 
+        joint_angles = IK_geometric([world_pos[0], 
+                                    world_pos[1], 
                                     world_pos[2]+150, 
                                     np.pi/2],
                                     m_matrix=self.rxarm.M_matrix,
