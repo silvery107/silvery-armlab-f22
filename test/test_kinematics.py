@@ -29,19 +29,23 @@ if __name__ == '__main__':
 
     ### Add arm configurations to test here
     fk_angles = np.array([[0.0, 0.0, 0.0, 0.0, 0.0],
-                          [-np.pi/7, -np.pi/7, np.pi/6, 0.0, 0.0]])
+                          [-np.pi/7, 0.0, 0.0, 0.0, 0.0],
+                          [np.pi/7, 0.0, 0.0, 0.0, 0.0],
+                          [0.0, 0.0, 0.0, np.pi/2, 0.0],
+                          [0.0, np.pi/6, -np.pi/7, np.pi/5, 0.0],
+                          [0.0, np.pi/6, -np.pi/7, 0, 0.0]])
     
     print('Test FK')
     fk_poses = []
     for joint_angles in fk_angles:
-        print('Joint angles:', joint_angles)
-        for i, _ in enumerate(joint_angles):
-            pose = FK_dh(deepcopy(dh_params), joint_angles, i)
-            print('Link {} pose: {}'.format(i, pose))
-            if i == len(joint_angles) - 1:
-                fk_poses.append(pose)
-        # pose = FK_pox(joint_angles, M_matrix, S_vectors)
-        # fk_poses.append(pose)
+        print('Joint angles:', np.rad2deg(joint_angles))
+        # for i, _ in enumerate(joint_angles):
+        #     pose = FK_dh(deepcopy(dh_params), joint_angles, i)
+        #     print('Link {} pose: {}'.format(i, pose))
+        #     if i == len(joint_angles) - 1:
+        #         fk_poses.append(pose)
+        pose = FK_pox(joint_angles, M_matrix, S_vectors)
+        fk_poses.append(pose)
         print("Joint pose:  ", pose)
         print()
 

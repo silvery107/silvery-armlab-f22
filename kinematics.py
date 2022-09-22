@@ -59,9 +59,7 @@ def FK_dh(dh_params, joint_angles, link):
         H = np.matmul(H, A)
 
     pose = get_pose_from_T(H)
-    rpy = get_euler_angles_from_T(H)
-
-    return np.array([pose[0], pose[1], pose[2], rpy[1]], dtype=DTYPE)
+    return pose
 
 
 def get_transform_from_dh(a, alpha, d, theta):
@@ -107,17 +105,9 @@ def get_euler_angles_from_T(T):
 
     @return     The euler angles from T.
     """
-    R = T[:3, :3]
-    if abs(R[2, 2]) > 1:
-        phi = 0.0
-    else:
-        phi = np.arctan2(np.sqrt(1-R[2, 2]*R[2, 2]), R[2, 2])
-    
-    # print(phi)
-    # rpy = rot_to_rpy(T[:3, :3]).flatten()
-    # return rpy
-    return np.array([0, abs(phi), 0], dtype=DTYPE)
-
+    # designated to euler ypr angle
+    rpy = rot_to_rpy(T[:3, :3]).flatten()
+    return rpy
 
 def get_pose_from_T(T):
     """!
@@ -130,7 +120,17 @@ def get_pose_from_T(T):
 
     @return     The pose from T.
     """
-    return T[:3, 3].flatten().astype(DTYPE)
+    # returns the pose : (x,y,z,phi) required for FK output and IK input
+    xyz = T[:3, 3].flatten()
+    
+    R = T[:3, :3]
+    if abs(R[2, 2]) > 1:
+        phi = 0.0
+    else:
+        phi = np.arctan2(np.sqrt(1-R[2, 2]*R[2, 2]), R[2, 2])
+
+    pose = np.append(xyz, phi)
+    return pose
 
 
 def FK_pox(joint_angles, m_mat, s_lst):
@@ -158,10 +158,13 @@ def FK_pox(joint_angles, m_mat, s_lst):
         T = np.matmul(T, est)
     
     T = np.matmul(T,m_mat)
+    rot = np.array([[0,-1,0,0],
+                    [1,0,0,0],
+                    [0,0,1,0],
+                    [0,0,0,1]])
+    T = np.matmul(rot,T)
     pose = get_pose_from_T(T)
-    rpy = get_euler_angles_from_T(T)
-
-    return np.array([pose[0], pose[1], pose[2], rpy[1]], dtype=DTYPE)
+    return pose
 
 
 def to_w_matrix(w):
@@ -200,29 +203,67 @@ def IK_geometric(pose, dh_params=None, m_matrix=None, s_list=None):
     @return     All four possible joint configurations in a numpy array 4x4 where each row is one possible joint
                 configuration
     """
-    x, y, z, phi = pose
-    l1 = 206.155
-    # l2 = 331
-    l2 = 408.575 - 50
-    base_offset = 104.57
-    x_c = np.sqrt(x*x + y*y)
-    y_c = z - base_offset
-    t1 = np.arctan2(y, x)
-    t2_offset = np.arctan2(50, 200)
-    t3_offset = np.pi/2 - t2_offset
-    t3 = - math.acos((x_c*x_c + y_c*y_c - l1*l1 - l2*l2)/(2*l1*l2))
-    t2 = np.arctan2(y_c, x_c) - np.arctan2(l2*np.sin(t3), l1 + l2*np.cos(t3))
-    t2 = np.pi/2 - t2
-    t2 -= t2_offset
-    t3 += t3_offset
-    t3 = -t3
+    l1 = 104.57                 # from t1 to t2, aka base offset
+    l2 = np.sqrt(200*200+50*50) # from t2 to t3, shoulder to elbow shortest distance
+    l3 = 200                    # from t3 to t4, elbow to wrist
+    l4 = 408.575 - 200 - 50     # from t4 to ee, center of gripper (?)
+    t_offset = np.arctan2(50, 200) # offset angle bewteen t3 and t2
+
+    # two cases for t1
+    t1 = np.arctan2(-pose[0], pose[1])
+    # t1 = np.pi + np.arctan2(-pose[0], pose[1])
+
+    phi = pose[3]
+    # r: orientation of l4 w.r.t. origion
+    r = np.array([-np.sin(t1)*np.cos(phi), np.cos(t1)*np.cos(phi), -np.sin(phi)])
+    xc, yc, zc = pose[0:3] - l4*r # xyz of the wrist (t4)
+    print((xc,yc,zc))
+
+    t5 = 0 # TODO 
+    # a. vertical pick: depends on block orientation; 
+    # b. hori. pick: 0 
+
+    r = np.sqrt(xc*xc + yc*yc)   # (r, s) are planar xy of the wrist 
+    s = zc - l1
+    print((r,s))
     
-    # t4 = 0 # TODO 
-    t4 = phi - (t2 + t3)
-    # assert t4 > 0
-    t5 = 0 # TODO this should be set to block theta or 0
+    # two cases for t3: t3 = t3; t3 = -t3
+    t3 = np.arccos((r*r + s*s - l2*l2 - l3*l3)/(2*l2*l3))
+    t2 = np.arctan2(s, r) - np.arctan2(l3*np.sin(t3), l2 + l3*np.cos(t3)) # TODO something to do with offset
+    
+    t3 = t3 + t_offset - np.pi/2 # offset
+    t2 = np.pi/2 - t_offset - t2 # offset
+
+    t4 = phi - (t2 + t3) # by geometry
+
     joint_angles = [t1, t2, t3, t4, t5]#.reshape((1, -1))
-    print("IK angles {}".format(joint_angles))
+    print(joint_angles)
+
+
+    # x, y, z, phi = pose
+    # l1 = 206.155
+    # # l2 = 331
+    # l2 = 408.575 - 50
+    # base_offset = 104.57
+    # x_c = np.sqrt(x*x + y*y)
+    # y_c = z - base_offset
+    # t1 = np.arctan2(y, x)
+    # t2_offset = np.arctan2(50, 200)
+    # t3_offset = np.pi/2 - t2_offset
+    # t3 = - math.acos((x_c*x_c + y_c*y_c - l1*l1 - l2*l2)/(2*l1*l2))
+    # t2 = np.arctan2(y_c, x_c) - np.arctan2(l2*np.sin(t3), l1 + l2*np.cos(t3))
+    # t2 = np.pi/2 - t2
+    # t2 -= t2_offset
+    # t3 += t3_offset
+    # t3 = -t3
+    
+    # # t4 = 0 # TODO 
+    # t4 = phi - (t2 + t3)
+    # # assert t4 > 0
+    # t5 = 0 # TODO this should be set to block theta or 0
+    # joint_angles = [t1, t2, t3, t4, t5]#.reshape((1, -1))
+    # print("IK angles {}".format(joint_angles))
+
 
     if m_matrix is None or s_list is None:
         return joint_angles
