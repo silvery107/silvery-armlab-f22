@@ -116,6 +116,7 @@ class RXArm(InterbotixRobot):
                              accel_time=self.accel_time,
                              blocking=False)
         self.open_gripper()
+        self.gripper_state = True
         self.initialized = True
         return self.initialized
 
