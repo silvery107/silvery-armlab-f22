@@ -51,6 +51,17 @@ def FK_dh(dh_params, joint_angles, link):
     H = np.identity(4, dtype=DTYPE)
     for idx, t in enumerate(joint_angles):
         a, alpha, d, theta = dh_params[idx]
+        if idx == 0:
+            value = t
+        elif idx == 1:
+            value = np.pi/2.0 - t
+        elif idx == 2:
+            value = np.pi/2.0 - t
+        elif idx == 3:
+            value = t - np.pi/2.0
+        elif idx == 4:
+            value = np.pi/2.0
+
         if alpha == -1:
             alpha = t
         elif theta == -1:
@@ -190,6 +201,14 @@ def to_s_matrix(w, v):
     smat = np.row_stack((smat, np.array([0,0,0,0])))
     return smat
 
+# def IK_multireach(pose, dh_params=None, m_matrix=None, s_list=None):
+#     reachable_1, joint_angles_1 = IK_geometric([above_world_pos[0], 
+#                                     above_world_pos[1], 
+#                                     above_world_pos[2], 
+#                                     np.pi/2],
+#                                     m_matrix=self.rxarm.M_matrix,
+#                                     s_list=self.rxarm.S_list)
+
 
 def IK_geometric(pose, dh_params=None, m_matrix=None, s_list=None):
     """!
@@ -210,36 +229,37 @@ def IK_geometric(pose, dh_params=None, m_matrix=None, s_list=None):
     t_offset = np.arctan2(50, 200) # offset angle bewteen t3 and t2
 
     # two cases for t1
-    t1 = np.arctan2(-pose[0], pose[1])
-    # t1 = np.pi + np.arctan2(-pose[0], pose[1])
+    theta1 = np.arctan2(-pose[0], pose[1])
 
     phi = pose[3]
     # r: orientation of l4 w.r.t. origion
-    r = np.array([-np.sin(t1)*np.cos(phi), np.cos(t1)*np.cos(phi), -np.sin(phi)])
-    xc, yc, zc = pose[0:3] - l4*r # xyz of the wrist (t4)
+    l4_unit = np.array([-np.sin(theta1)*np.cos(phi), np.cos(theta1)*np.cos(phi), -np.sin(phi)])
+    xc, yc, zc = pose[0:3] - l4*l4_unit # xyz of the wrist (t4)
     # print((xc,yc,zc))
+    if np.sqrt(xc*xc + yc*yc + (zc - l1)*(zc - l1)) > (l2 + l3):
+        print("Pose can't reach!!! Go home!!")
+        return False, [0, 0, 0, 0, 0]
 
     r = np.sqrt(xc*xc + yc*yc)   # (r, s) are planar xy of the wrist 
     s = zc - l1
-    # print((r,s))
     
     # two cases for t3: t3 = t3; t3 = -t3
-    t3 = - np.arccos((r*r + s*s - l2*l2 - l3*l3)/(2*l2*l3))
-    t2 = np.arctan2(s, r) - np.arctan2(l3*np.sin(t3), l2 + l3*np.cos(t3)) # TODO something to do with offset
+    theta3 = - np.arccos((r*r + s*s - l2*l2 - l3*l3)/(2*l2*l3))
+    theta2 = np.arctan2(s, r) - np.arctan2(l3*np.sin(theta3), l2 + l3*np.cos(theta3)) # TODO something to do with offset
     
     # t3 = t3 + t_offset - np.pi/2 # offset
-    t3 += np.pi/2 -t_offset
-    t3 = -t3
-    t2 = np.pi/2 - t_offset - t2 # offset
+    theta3 += np.pi/2 -t_offset
+    theta3 = -theta3
+    theta2 = np.pi/2 - t_offset - theta2 # offset
 
-    t4 = phi - (t2 + t3) # by geometry
+    theta4 = phi - (theta2 + theta3) # by geometry
     # assert t4 > 0
 
-    t5 = 0 # TODO 
+    theta5 = 0 # TODO 
     # a. vertical pick: depends on block orientation; 
     # b. hori. pick: 0 
 
-    joint_angles = [t1, t2, t3, t4, t5]#.reshape((1, -1))
+    joint_angles = [theta1, theta2, theta3, theta4, theta5]#.reshape((1, -1))
     # print(joint_angles)
 
     if m_matrix is None or s_list is None:
@@ -253,10 +273,10 @@ def IK_geometric(pose, dh_params=None, m_matrix=None, s_list=None):
     print('FK Pose:  {}'.format(fk_pose))
     if np.allclose(compare, np.zeros_like(compare), rtol=1e-1, atol=1e-1):
         print('Pose matches with FK')
-        return joint_angles
+        return True, joint_angles
     else:
         print('No match to the FK pose found! Go home!')
-        return [0, 0, 0, 0, 0]
+        return False, [0, 0, 0, 0, 0]
 
 def rot_to_quat(rot):
     """

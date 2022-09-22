@@ -44,7 +44,8 @@ if __name__ == '__main__':
         #     print('Link {} pose: {}'.format(i, pose))
         #     if i == len(joint_angles) - 1:
         #         fk_poses.append(pose)
-        pose = FK_pox(joint_angles, M_matrix, S_vectors)
+        # pose = FK_pox(joint_angles, M_matrix, S_vectors)
+        pose = FK_dh(dh_params, joint_angles, 0)
         fk_poses.append(pose)
         print("End pose:   {}".format(pose))
         print()
