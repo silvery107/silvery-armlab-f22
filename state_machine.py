@@ -198,6 +198,8 @@ class StateMachine():
         self.camera.new_click = False
         pt = self.camera.last_click
         z = self.camera.DepthFrameRaw[pt[1]][pt[0]]
+        click_uvd = np.append(pt, z)
+        block_uvd = self.get_block_uvd_from_click(click_uvd)
 
         target_world_pos = self.camera.coor_pixel_to_world(pt[0], pt[1], z).flatten().tolist()
 
@@ -288,6 +290,7 @@ class StateMachine():
 
         reachable_low, reachable_high = False, False
 
+        # Try vertical reach with phi = pi/2
         reachable_low, joint_angles_2 = IK_geometric([target_world_pos[0], 
                                     target_world_pos[1], 
                                     target_world_pos[2], 
@@ -306,6 +309,23 @@ class StateMachine():
                                             s_list=self.rxarm.S_list)
                 phi = phi - np.pi / 18.0
 
+        # Try horizontal reach with phi = 0.0
+        if not reachable_high or not reachable_low:
+            reachable_low, joint_angles_2 = IK_geometric([target_world_pos[0], 
+                                    target_world_pos[1], 
+                                    target_world_pos[2], 
+                                    0.0],
+                                    m_matrix=self.rxarm.M_matrix,
+                                    s_list=self.rxarm.S_list)
+
+            reachable_high, joint_angles_1 = IK_geometric([above_world_pos[0], 
+                                        above_world_pos[1], 
+                                        above_world_pos[2], 
+                                        0.0],
+                                        m_matrix=self.rxarm.M_matrix,
+                                        s_list=self.rxarm.S_list)
+
+        # Unreachable
         if not reachable_high or not reachable_low:
             if not self.next_state == "estop":
                 self.next_state = "idle"
@@ -378,6 +398,17 @@ class StateMachine():
         
         self.next_state = "idle"
         
+    def get_block_uvd_from_click(self, click_uvd):
+        blocks_uv = self.camera.block_detections.uvds[:2]
+        dist = blocks_uv - click_uvd[:2]
+        dist_norm = np.linalg.norm(dist, axis=1)
+        dist_min = np.min(dist_norm)
+        print(dist_min)
+        # !! TODO check the threshold here
+        if dist_min < 10:
+            return self.camera.block_detections.uvds[np.argmin(dist_norm)]
+        else:
+            return click_uvd
 
     def detect(self):
         """!
