@@ -210,7 +210,7 @@ def to_s_matrix(w, v):
 #                                     s_list=self.rxarm.S_list)
 
 
-def IK_geometric(pose, block_ori=0, dh_params=None, m_matrix=None, s_list=None):
+def IK_geometric(pose, block_ori=None, dh_params=None, m_matrix=None, s_list=None):
     """!
     @brief      Get all possible joint configs that produce the pose.
 
@@ -256,10 +256,22 @@ def IK_geometric(pose, block_ori=0, dh_params=None, m_matrix=None, s_list=None):
     
     # a. vertical pick: depends on block orientation; 
     # b. hori. pick: 0 
-    if phi == np.pi/2:
-        theta5 = block_ori - theta1
-    else:
+    if block_ori is None:
         theta5 = 0
+    else:
+        if phi > np.pi/4.0:
+            theta5 = theta1 - block_ori
+            if theta5 > np.pi/4.0:
+                theta5 = theta5 - np.pi/2.0
+            elif theta5 < - np.pi/4.0:
+                theta5 = theta5 + np.pi/2.0
+            
+            if theta5 > 0:
+                theta5 = theta5 - np.pi/2.0
+            else:
+                theta5 = theta5 + np.pi/2.0
+        else:
+            theta5 = 0
 
     joint_angles = [theta1, theta2, theta3, theta4, theta5]
     # print(joint_angles)
@@ -268,16 +280,16 @@ def IK_geometric(pose, block_ori=0, dh_params=None, m_matrix=None, s_list=None):
         return [theta1, theta2, -theta3, -theta4, theta5] # reverse theta3 and theta4 to match the real motor setting
 
     # !!! Test IK with FK
-    print("IK angles {}".format(joint_angles))
+    # print("IK angles {}".format(joint_angles))
     fk_pose = FK_pox(joint_angles, m_matrix, s_list)
     compare = fk_pose - pose
-    print('Tgt Pose: {} '.format(pose))
-    print('FK Pose:  {}'.format(fk_pose))
+    # print('Tgt Pose: {} '.format(pose))
+    # print('FK Pose:  {}'.format(fk_pose))
     if np.allclose(compare, np.zeros_like(compare), rtol=1e-1, atol=1e-1):
-        print('Pose matches with FK')
+        # print('Pose matches with FK')
         return True, [theta1, theta2, -theta3, -theta4, theta5] # reverse theta3 and theta4 to match the real motor setting
     else:
-        print('No match to the FK pose found!!')
+        # print('No match to the FK pose found!!')
         return False, [0, 0, 0, 0, 0]
 
 def rot_to_quat(rot):

@@ -187,6 +187,13 @@ class StateMachine():
                     self.rxarm.gripper_state = False
         if not self.next_state == "estop":
             self.next_state = "idle"
+    
+    def calMoveTime(self, target_joint):
+        displacement = target_joint - self.rxarm.get_positions()
+        angular_t = np.abs(displacement) / (np.pi / 5)
+        move_time = np.max(angular_t)
+        ac_time = move_time / 4.0
+        return move_time, ac_time
 
     def pick(self):
         self.status_message = "State: Pick - Click to pick"
@@ -199,12 +206,13 @@ class StateMachine():
         pt = self.camera.last_click
         z = self.camera.DepthFrameRaw[pt[1]][pt[0]]
         click_uvd = np.append(pt, z)
-        block_uvd = self.get_block_uvd_from_click(click_uvd)
+        block_uvd, block_ori = self.get_block_uvd_from_click(click_uvd)
 
-        target_world_pos = self.camera.coor_pixel_to_world(pt[0], pt[1], z).flatten().tolist()
+        target_world_pos = self.camera.coor_pixel_to_world(block_uvd[0], block_uvd[1], block_uvd[2]).flatten().tolist()
 
         ############ Planning #############
         pick_height_offset = 10
+        pick_wrist_offset = np.pi/18.0/2.0
         target_world_pos[2] = target_world_pos[2] + pick_height_offset
         above_world_pos = deepcopy(target_world_pos)
         above_world_pos[2] = target_world_pos[2] + pick_height_offset + 80
@@ -215,6 +223,7 @@ class StateMachine():
                                     target_world_pos[1], 
                                     target_world_pos[2], 
                                     np.pi/2],
+                                    block_ori=block_ori,
                                     m_matrix=self.rxarm.M_matrix,
                                     s_list=self.rxarm.S_list)
 
@@ -225,6 +234,7 @@ class StateMachine():
                                             above_world_pos[1], 
                                             above_world_pos[2], 
                                             phi],
+                                            block_ori=block_ori,
                                             m_matrix=self.rxarm.M_matrix,
                                             s_list=self.rxarm.S_list)
                 phi = phi - np.pi/18.0
@@ -245,25 +255,32 @@ class StateMachine():
             self.rxarm.gripper_state = True
 
         # 2. go to the point above target pose with waist angle move first
-        self.rxarm.set_single_joint_position("waist", joint_angles_1[0], moving_time=2.0, accel_time=0.5, blocking=True)
+        move_time = np.abs(joint_angles_1[0]) / (np.pi / 5)
+        ac_time = move_time / 4.0
+            
+        self.rxarm.set_single_joint_position("waist", joint_angles_1[0], moving_time=move_time, accel_time=ac_time, blocking=True)
 
+        move_time, ac_time = self.calMoveTime(joint_angles_1)
         self.rxarm.set_joint_positions(joint_angles_1,
-                                        moving_time=1.5,
-                                        accel_time=0.5,
+                                        moving_time=move_time,
+                                        accel_time=ac_time,
                                         blocking=True)
 
         # 3. go to the target pose and close gripper
+        joint_angles_2[-2] = joint_angles_2[-2] + pick_wrist_offset
+        move_time, ac_time = self.calMoveTime(joint_angles_2)
         self.rxarm.set_joint_positions(joint_angles_2,
-                                        moving_time=1.5,
-                                        accel_time=0.5,
+                                        moving_time=move_time,
+                                        accel_time=ac_time,
                                         blocking=True)
         self.rxarm.close_gripper()
         self.rxarm.gripper_state = False
         
         # 4. raise to the point above the target point
+        move_time, ac_time = self.calMoveTime(joint_angles_1)
         self.rxarm.set_joint_positions(joint_angles_1,
-                                        moving_time=1.0,
-                                        accel_time=0.5,
+                                        moving_time=move_time,
+                                        accel_time=ac_time,
                                         blocking=True)
 
         if not self.next_state == "estop":
@@ -279,11 +296,14 @@ class StateMachine():
         self.camera.new_click = False
         pt = self.camera.last_click
         z = self.camera.DepthFrameRaw[pt[1]][pt[0]]
+        click_uvd = np.append(pt, z)
+        block_uvd, block_ori = self.get_block_uvd_from_click(click_uvd)
 
-        target_world_pos = self.camera.coor_pixel_to_world(pt[0], pt[1], z).flatten().tolist()
+        target_world_pos = self.camera.coor_pixel_to_world(block_uvd[0], block_uvd[1], block_uvd[2]).flatten().tolist()
 
         ############ Planning #############
-        place_height_offset = 48
+        place_height_offset = 30
+        place_wrist_offset = np.pi/18.0/2.0
         target_world_pos[2] = target_world_pos[2] + place_height_offset
         above_world_pos = deepcopy(target_world_pos)
         above_world_pos[2] = target_world_pos[2] + place_height_offset + 80
@@ -295,6 +315,7 @@ class StateMachine():
                                     target_world_pos[1], 
                                     target_world_pos[2], 
                                     np.pi/2],
+                                    block_ori=0,
                                     m_matrix=self.rxarm.M_matrix,
                                     s_list=self.rxarm.S_list)
 
@@ -305,6 +326,7 @@ class StateMachine():
                                             above_world_pos[1], 
                                             above_world_pos[2], 
                                             phi],
+                                            block_ori=0,
                                             m_matrix=self.rxarm.M_matrix,
                                             s_list=self.rxarm.S_list)
                 phi = phi - np.pi / 18.0
@@ -333,26 +355,42 @@ class StateMachine():
             return
 
         ############ Executing #############
-        # 1. go to point above target pose with waist angle move first
-        self.rxarm.set_single_joint_position("waist", joint_angles_1[0], moving_time=2.0, accel_time=0.5, blocking=True)
-
+        # 1. go to point above target pose
+        move_time, ac_time = self.calMoveTime(joint_angles_1)
         self.rxarm.set_joint_positions(joint_angles_1,
-                                        moving_time=1.5,
-                                        accel_time=0.5,
+                                        moving_time=move_time,
+                                        accel_time=ac_time,
                                         blocking=True)
 
         # 2. go to target pose and open gripper
-        self.rxarm.set_joint_positions(joint_angles_2,
-                                        moving_time=1.5,
-                                        accel_time=0.5,
-                                        blocking=True)
+        joint_angles_2[-2] = joint_angles_2[-2] + place_wrist_offset
+        displacement = np.array(joint_angles_2) - np.array(joint_angles_1)
+        displacement_unit =  displacement
+
+        current_effort = self.rxarm.get_efforts()
+        print("initial: ", current_effort)
+        temp_joint = np.array(joint_angles_1)
+        for i in range(10):
+            displacement_unit = displacement_unit / 2
+            temp_joint = temp_joint + displacement_unit
+            move_time, ac_time = self.calMoveTime(temp_joint)
+            self.rxarm.set_joint_positions(temp_joint.tolist(),
+                                            moving_time=move_time,
+                                            accel_time=ac_time,
+                                            blocking=True)
+            effort = self.rxarm.get_efforts()
+            # print(effort)
+            effort_diff = (effort - current_effort)[1:3]
+            print("effort norm:", np.linalg.norm(effort_diff))
+            if np.linalg.norm(effort_diff) > 300:
+                break
         self.rxarm.open_gripper()
         self.rxarm.gripper_state = False
         
-        # 3. raise to point above target point
+        move_time, ac_time = self.calMoveTime(joint_angles_1)
         self.rxarm.set_joint_positions(joint_angles_1,
-                                        moving_time=1.0,
-                                        accel_time=0.5,
+                                        moving_time=move_time,
+                                        accel_time=ac_time,
                                         blocking=True)
 
 
@@ -399,16 +437,20 @@ class StateMachine():
         self.next_state = "idle"
         
     def get_block_uvd_from_click(self, click_uvd):
-        blocks_uv = self.camera.block_detections.uvds[:2]
+        if self.camera.block_detections.detected_num == 0:
+            return click_uvd, 0.0
+        blocks_uv = self.camera.block_detections.uvds[:, :2]
+        # print(blocks_uv.shape)
+        # print(click_uvd[:2].shape)
         dist = blocks_uv - click_uvd[:2]
         dist_norm = np.linalg.norm(dist, axis=1)
         dist_min = np.min(dist_norm)
-        print(dist_min)
+        print("pixel dist:", dist_min)
         # !! TODO check the threshold here
-        if dist_min < 10:
-            return self.camera.block_detections.uvds[np.argmin(dist_norm)]
+        if dist_min < 50:
+            return self.camera.block_detections.uvds[np.argmin(dist_norm)], self.camera.block_detections.thetas[np.argmin(dist_norm)]
         else:
-            return click_uvd
+            return click_uvd, 0.0
 
     def detect(self):
         """!
