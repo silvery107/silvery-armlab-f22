@@ -125,9 +125,6 @@ class Camera():
         self.size_id = ["small", "large"]
 
         self.loadCameraCalibration("config/camera_calib.yaml")
-        # TODO
-        # use 4 aiprltag depth to calc a plane func
-        # use plane func and ideal depth to calc a ground plane offset
 
     def processVideoFrame(self):
         """!
@@ -137,13 +134,13 @@ class Camera():
         cv2.rectangle(self.ProcessVideoFrame, (575,400),(750,720), (255, 0, 0), 2)
         if self.block_detections.detected_num < 1:
             return
-        for idx, (color, pixel, point, size) in enumerate(zip(self.block_detections.colors, self.block_detections.uvds, self.block_detections.xyzs, self.block_detections.sizes)):
+        for idx, (color, pixel, point, size, theta) in enumerate(zip(self.block_detections.colors, self.block_detections.uvds, self.block_detections.xyzs, self.block_detections.sizes, self.block_detections.thetas)):
             cx, cy = pixel[:2]
             cv2.putText(self.ProcessVideoFrame, self.color_id[color], (cx-30, cy+30), self.font, 0.5, (0,0,0), thickness=2)
             cv2.putText(self.ProcessVideoFrame, self.size_id[size], (cx-30, cy+45), self.font, 0.5, (0,0,0), thickness=2)
-            cv2.putText(self.ProcessVideoFrame, "+", (cx-12, cy+8), self.font, 1, (0,0,0), thickness=2)
+            # cv2.putText(self.ProcessVideoFrame, "+", (cx-12, cy+8), self.font, 1, (0,0,0), thickness=2)
             cv2.putText(self.ProcessVideoFrame, str(idx), (cx-30, cy+75), self.font, 1, (0,0,0), thickness=2)
-            # cv2.putText(self.VideoFrame, str(int(theta)), (cx, cy), self.font, 0.5, (0,0,0), thickness=2)
+            cv2.putText(self.VideoFrame, str(int(np.rad2deg(theta))), (cx, cy), self.font, 0.5, (0,0,0), thickness=2)
             cv2.putText(self.ProcessVideoFrame, "%.0f"%(point[2]), (cx-20, cy+55), self.font, 0.5, (0,0,0), thickness=2)
 
         cv2.drawContours(self.ProcessVideoFrame, self.block_detections.all_contours, -1, (255, 0, 0), 1)
@@ -290,10 +287,7 @@ class Camera():
         self.block_detections.all_contours = contours
 
         cv2.drawContours(self.ProcessVideoFrame, contours, -1, (255, 0, 0), 1)
-        contours_valid = []
-        block_uvd = []
-        block_xyz = []
-        colors = []
+
         for contour in contours:
             M = cv2.moments(contour)
             if M['m00'] < 200 or abs(M["m00"]) > 7000:
@@ -319,10 +313,11 @@ class Camera():
                 self.block_detections.sizes.append(0) # 0 for small
             else:
                 self.block_detections.sizes.append(1) # 1 for large
+            block_ori = cv2.minAreaRect(contours_new_valid)[2] + 90 # turn the range from [-90, 0) to (0, 90]
             self.block_detections.uvds.append([cx, cy, cz])
             self.block_detections.xyzs.append(self.coor_pixel_to_world(cx, cy, cz))
             self.block_detections.contours.append(contours_new_valid)
-            self.block_detections.thetas.append(cv2.minAreaRect(contours_new_valid)[2])
+            self.block_detections.thetas.append(np.deg2rad(block_ori))
             self.block_detections.colors.append(self.retrieve_area_color(self.ProcessVideoFrameLab, contours_new_valid))
 
         self.block_detections.update()
@@ -433,7 +428,7 @@ class VideoThread(QThread):
         self.camera = camera
         image_topic = "/camera/color/image_raw"
         depth_topic = "/camera/aligned_depth_to_color/image_raw"
-        camera_info_topic = "/camera/color/camera_info"
+        # camera_info_topic = "/camera/color/camera_info"
         tag_image_topic = "/tag_detections_image"
         tag_detection_topic = "/tag_detections"
         image_listener = ImageListener(image_topic, self.camera)
