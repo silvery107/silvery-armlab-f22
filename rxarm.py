@@ -193,7 +193,8 @@ class RXArm(InterbotixRobot):
 
         @return     The EE pose as [x, y, z, phi] or as needed.
         """
-        return [0, 0, 0, 0]
+        fk_pose = FK_pox(self.joint_positions, self.M_matrix, self.S_list)
+        return fk_pose.tolist()
 
     @_ensure_initialized
     def get_wrist_pose(self):
@@ -206,7 +207,7 @@ class RXArm(InterbotixRobot):
 
     def parse_pox_param_file(self, pox_config_file):
         """!
-        @brief      TODO Parse a PoX config file
+        @brief      Parse a PoX config file
 
         @return     0 if file was parsed, -1 otherwise 
         """
