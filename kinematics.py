@@ -210,7 +210,7 @@ def to_s_matrix(w, v):
 #                                     s_list=self.rxarm.S_list)
 
 
-def IK_geometric(pose, dh_params=None, m_matrix=None, s_list=None):
+def IK_geometric(pose, block_ori=0, dh_params=None, m_matrix=None, s_list=None):
     """!
     @brief      Get all possible joint configs that produce the pose.
 
@@ -228,7 +228,6 @@ def IK_geometric(pose, dh_params=None, m_matrix=None, s_list=None):
     l4 = 408.575 - 200 - 50     # from t4 to ee, center of gripper (?)
     t_offset = np.arctan2(50, 200) # offset angle bewteen t3 and t2
 
-    # two cases for t1
     theta1 = np.arctan2(-pose[0], pose[1])
 
     phi = pose[3]
@@ -254,16 +253,19 @@ def IK_geometric(pose, dh_params=None, m_matrix=None, s_list=None):
 
     theta4 = phi - (theta2 + theta3) # by geometry
     # assert t4 > 0
-
-    theta5 = 0 # TODO 
+    
     # a. vertical pick: depends on block orientation; 
     # b. hori. pick: 0 
+    if phi == np.pi/2:
+        theta5 = block_ori - theta1
+    else:
+        theta5 = 0
 
-    joint_angles = [theta1, theta2, theta3, theta4, theta5]#.reshape((1, -1))
+    joint_angles = [theta1, theta2, theta3, theta4, theta5]
     # print(joint_angles)
 
     if m_matrix is None or s_list is None:
-        return joint_angles
+        return [theta1, theta2, -theta3, -theta4, theta5] # reverse theta3 and theta4 to match the real motor setting
 
     # !!! Test IK with FK
     print("IK angles {}".format(joint_angles))
@@ -273,7 +275,7 @@ def IK_geometric(pose, dh_params=None, m_matrix=None, s_list=None):
     print('FK Pose:  {}'.format(fk_pose))
     if np.allclose(compare, np.zeros_like(compare), rtol=1e-1, atol=1e-1):
         print('Pose matches with FK')
-        return True, joint_angles
+        return True, [theta1, theta2, -theta3, -theta4, theta5] # reverse theta3 and theta4 to match the real motor setting
     else:
         print('No match to the FK pose found!!')
         return False, [0, 0, 0, 0, 0]
