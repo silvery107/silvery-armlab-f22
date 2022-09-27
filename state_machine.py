@@ -193,7 +193,7 @@ class StateMachine():
         self.current_state = "pick"
         self.camera.new_click = False
         while not self.camera.new_click:
-            rospy.sleep(0.1)
+            rospy.sleep(0.05)
         
         self.camera.new_click = False
         pt = self.camera.last_click
@@ -201,19 +201,20 @@ class StateMachine():
 
         target_world_pos = self.camera.coor_pixel_to_world(pt[0], pt[1], z).flatten().tolist()
 
+        ############ Planning #############
+        pick_height_offset = 10
+        target_world_pos[2] = target_world_pos[2] + pick_height_offset
         above_world_pos = deepcopy(target_world_pos)
-        above_world_pos[2] = target_world_pos[2] + 80
+        above_world_pos[2] = target_world_pos[2] + pick_height_offset + 80
 
         reachable_low, reachable_high = False, False
 
         reachable_low, joint_angles_2 = IK_geometric([target_world_pos[0], 
                                     target_world_pos[1], 
-                                    target_world_pos[2]+10, 
+                                    target_world_pos[2], 
                                     np.pi/2],
                                     m_matrix=self.rxarm.M_matrix,
                                     s_list=self.rxarm.S_list)
-        joint_angles_2[2] = - joint_angles_2[2]
-        joint_angles_2[3] = - joint_angles_2[3]
 
         if reachable_low:
             phi = np.pi/2
@@ -225,18 +226,15 @@ class StateMachine():
                                             m_matrix=self.rxarm.M_matrix,
                                             s_list=self.rxarm.S_list)
                 phi = phi - np.pi/18.0
-            joint_angles_1[2] = - joint_angles_1[2]
-            joint_angles_1[3] = - joint_angles_1[3]
-        else:
-            pass
 
         if not reachable_high or not reachable_low:
             if not self.next_state == "estop":
                 self.next_state = "idle"
             print("Clicked point is unreachable, remain idle!!!")
             return
-
-        # 1. go to home pose
+        
+        ############ Executing #############
+        # 1. go to the home pose
         self.rxarm.go_to_home_pose(moving_time=2.0,
                                     accel_time=0.5,
                                     blocking=True)
@@ -244,24 +242,23 @@ class StateMachine():
             self.rxarm.open_gripper()
             self.rxarm.gripper_state = True
 
-        # 2. go to point above target pose with waist angle move first
-
-        self.rxarm.set_single_joint_position("waist", joint_angles_1[0], moving_time=2.0, accel_time=0.1, blocking=True)
+        # 2. go to the point above target pose with waist angle move first
+        self.rxarm.set_single_joint_position("waist", joint_angles_1[0], moving_time=2.0, accel_time=0.5, blocking=True)
 
         self.rxarm.set_joint_positions(joint_angles_1,
                                         moving_time=1.5,
                                         accel_time=0.5,
                                         blocking=True)
 
-        # 3. go to target pose and close gripper
+        # 3. go to the target pose and close gripper
         self.rxarm.set_joint_positions(joint_angles_2,
-                                        moving_time=2.0,
+                                        moving_time=1.5,
                                         accel_time=0.5,
                                         blocking=True)
         self.rxarm.close_gripper()
         self.rxarm.gripper_state = False
         
-        # 4. raise to point above target point
+        # 4. raise to the point above the target point
         self.rxarm.set_joint_positions(joint_angles_1,
                                         moving_time=1.0,
                                         accel_time=0.5,
@@ -283,19 +280,20 @@ class StateMachine():
 
         target_world_pos = self.camera.coor_pixel_to_world(pt[0], pt[1], z).flatten().tolist()
 
+        ############ Planning #############
+        place_height_offset = 48
+        target_world_pos[2] = target_world_pos[2] + place_height_offset
         above_world_pos = deepcopy(target_world_pos)
-        above_world_pos[2] = target_world_pos[2] + 80 + 30
+        above_world_pos[2] = target_world_pos[2] + place_height_offset + 80
 
         reachable_low, reachable_high = False, False
 
         reachable_low, joint_angles_2 = IK_geometric([target_world_pos[0], 
                                     target_world_pos[1], 
-                                    target_world_pos[2]+48, 
+                                    target_world_pos[2], 
                                     np.pi/2],
                                     m_matrix=self.rxarm.M_matrix,
                                     s_list=self.rxarm.S_list)
-        joint_angles_2[2] = - joint_angles_2[2]
-        joint_angles_2[3] = - joint_angles_2[3]
 
         if reachable_low:
             phi = np.pi/2
@@ -307,10 +305,6 @@ class StateMachine():
                                             m_matrix=self.rxarm.M_matrix,
                                             s_list=self.rxarm.S_list)
                 phi = phi - np.pi / 18.0
-            joint_angles_1[2] = - joint_angles_1[2]
-            joint_angles_1[3] = - joint_angles_1[3]
-        else:
-            pass
 
         if not reachable_high or not reachable_low:
             if not self.next_state == "estop":
@@ -318,8 +312,9 @@ class StateMachine():
             print("Clicked point is unreachable, remain idle!!!")
             return
 
+        ############ Executing #############
         # 1. go to point above target pose with waist angle move first
-        self.rxarm.set_single_joint_position("waist", joint_angles_1[0], moving_time=2.0, accel_time=0.1, blocking=True)
+        self.rxarm.set_single_joint_position("waist", joint_angles_1[0], moving_time=2.0, accel_time=0.5, blocking=True)
 
         self.rxarm.set_joint_positions(joint_angles_1,
                                         moving_time=1.5,
@@ -328,7 +323,7 @@ class StateMachine():
 
         # 2. go to target pose and open gripper
         self.rxarm.set_joint_positions(joint_angles_2,
-                                        moving_time=2.0,
+                                        moving_time=1.5,
                                         accel_time=0.5,
                                         blocking=True)
         self.rxarm.open_gripper()
