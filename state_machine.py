@@ -499,6 +499,8 @@ class StateMachine():
                 if blocks.colors[i] == target_color:
                     target_color = target_color + 1
                     stack_order.append(i)
+                    if i == blocks.detected_num - 1:
+                        stack_xyz = self.auto_stack(blocks, stack_xyz, stack_order)
                 else:
                     stack_xyz = self.auto_stack(blocks, stack_xyz, stack_order)
                     # print(stack_xyz)
