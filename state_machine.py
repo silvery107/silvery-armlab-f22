@@ -213,7 +213,7 @@ class StateMachine():
         click_uvd = np.append(pt, z)
         target_world_pos, block_ori = self.get_block_xyz_from_click(click_uvd)
 
-        # target_world_pos = self.camera.coor_pixel_to_world(block_uvd[0], block_uvd[1], block_uvd[2]).flatten().tolist()
+        # target_world_pos = self.camera.coord_pixel_to_world(block_uvd[0], block_uvd[1], block_uvd[2]).flatten().tolist()
         self.auto_pick(target_world_pos, block_ori)
         if not self.next_state == "estop":
             self.next_state = "idle"
@@ -318,7 +318,7 @@ class StateMachine():
 
         # print(target_world_pos)
 
-        # target_world_pos = self.camera.coor_pixel_to_world(block_uvd[0], block_uvd[1], block_uvd[2]).flatten().tolist()
+        # target_world_pos = self.camera.coord_pixel_to_world(block_uvd[0], block_uvd[1], block_uvd[2]).flatten().tolist()
         self.auto_place(target_world_pos, block_ori)
 
         if not self.next_state == "estop":
@@ -404,7 +404,7 @@ class StateMachine():
         current_effort = self.rxarm.get_efforts()
         print("initial: ", current_effort)
         temp_joint = np.array(joint_angles_1)
-        for i in range(10):
+        for i in range(6):
             displacement_unit = displacement_unit / 2
             temp_joint = temp_joint + displacement_unit
             move_time, ac_time = self.calMoveTime(temp_joint)
@@ -438,7 +438,7 @@ class StateMachine():
     def auto_lineup(self, blocks, line_start_xyz, indices=None):
         if indices is None:
             indices = range(blocks.detected_num)
-        # !!! line up incremental alone y-axis
+        # !!! line up incremental alone x-axis
         print("[LINE UP]    Start auto lining up...")
         for idx in indices:
             pick_ret = self.auto_pick(blocks.xyzs[idx], blocks.thetas[idx])
@@ -486,14 +486,10 @@ class StateMachine():
         target_color = 0
         stack_xyz = [-250, 25, -5]
         destack_xyz = [-50, 200, 0]
-        # stack_order = []
-        # destack_order = []
-        # temp_order = []
 
         ############ Real Test ##############
         while blocks.detected_num>0:
             stack_order = []
-            temp_order = []
             destack_order = []
             for i in range(blocks.detected_num):
                 if blocks.colors[i] == target_color:
@@ -504,17 +500,12 @@ class StateMachine():
                 else:
                     stack_xyz = self.auto_stack(blocks, stack_xyz, stack_order)
                     # print(stack_xyz)
-                    print(blocks.xyzs[:, 2])
+                    # print(blocks.xyzs[:, 2])
                     for idx in range(blocks.detected_num):
-                        if blocks.xyzs[idx, 2] > 50:
-                            temp_order.append(idx)
-                    for idx in temp_order:
-                        if stack_order.count(idx)>0:
-                            continue
-                        else:
+                        if blocks.xyzs[idx, 2] > 50 and stack_order.count(idx)<1:
                             destack_order.append(idx)
-                    # stacked_blocks_indices = blocks.xyzs[:, 2] > 50 # z val larger than 50 mm
-                    print(destack_order)
+
+                    # print(destack_order)
                     destack_xyz = self.auto_lineup(blocks, destack_xyz, destack_order)
                     break
             
@@ -584,7 +575,7 @@ class StateMachine():
         return self.camera.cameraCalibrated
         
     def get_block_xyz_from_click(self, click_uvd):
-        click_xyz = self.camera.coor_pixel_to_world(click_uvd[0], click_uvd[1], click_uvd[2]).flatten().tolist()
+        click_xyz = self.camera.coord_pixel_to_world(click_uvd[0], click_uvd[1], click_uvd[2]).flatten().tolist()
         if self.camera.block_detections.detected_num == 0:
             return click_xyz, 0.0
         blocks_uv = self.camera.block_detections.uvds[:, :2]
@@ -604,24 +595,25 @@ class StateMachine():
         """!
         @brief      Detect the blocks
         """
-        # 720x1280
+        # 1280x720
         # -----------------
         # |  2    |    1  |
-        # -----------------
+        # ----------------- frac {2}{3}
         # |  3  |ARM|  4  |
         # -----------------
         self.current_state = "detect"
         self.status_message = "Detecting blocks..."
         img_h, img_w = 720, 1280
+        frac = 2/3
         blind_rectangle = None
         if ignore==1:
-            blind_rectangle = [(int(img_w/2), 0), (img_w, int(img_h/2))]
+            blind_rectangle = [(int(img_w/2), 0), (img_w, int(img_h*frac))]
         elif ignore==2:
-            blind_rectangle = [(0, 0), (int(img_w/2), int(img_h/2))]
+            blind_rectangle = [(0, 0), (int(img_w/2), int(img_h/3/2))]
         elif ignore==3:
-            blind_rectangle = [(0, int(img_h/2)), (int(img_w/2), img_h)]
+            blind_rectangle = [(0, int(img_h*frac)), (int(img_w/2), img_h)]
         elif ignore==4:
-            blind_rectangle = [(int(img_w/2), int(img_h/2)), (img_w, img_h)]
+            blind_rectangle = [(int(img_w/2), int(img_h*frac)), (img_w, img_h)]
 
         self.camera.detectBlocksInDepthImage(blind_rect=blind_rectangle)
         rospy.sleep(0.1)
