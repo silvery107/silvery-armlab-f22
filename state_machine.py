@@ -218,7 +218,8 @@ class StateMachine():
         if not self.next_state == "estop":
             self.next_state = "idle"
 
-    def auto_pick(self, target_world_pos, block_ori):
+    def auto_pick(self, _target_world_pos, block_ori):
+        target_world_pos = deepcopy(_target_world_pos)
         ############ Planning #############
         print("[PICK] Planning waypoints...")
         pick_height_offset = 10
@@ -249,6 +250,8 @@ class StateMachine():
                                             m_matrix=self.rxarm.M_matrix,
                                             s_list=self.rxarm.S_list)
                 phi = phi - np.pi/18.0
+                if phi < 0:
+                    break
 
         if not reachable_high or not reachable_low:
             if not self.next_state == "estop":
@@ -313,13 +316,17 @@ class StateMachine():
         click_uvd = np.append(pt, z)
         target_world_pos, block_ori = self.get_block_xyz_from_click(click_uvd)
 
+        # print(target_world_pos)
+
         # target_world_pos = self.camera.coor_pixel_to_world(block_uvd[0], block_uvd[1], block_uvd[2]).flatten().tolist()
         self.auto_place(target_world_pos, block_ori)
 
         if not self.next_state == "estop":
             self.next_state = "idle"
 
-    def auto_place(self, target_world_pos, _block_ori=None):
+    def auto_place(self, _target_world_pos, _block_ori=None):
+        target_world_pos = deepcopy(_target_world_pos)
+        # print(target_world_pos)
         if _block_ori is not None:
             block_ori = _block_ori
         else:
@@ -354,6 +361,8 @@ class StateMachine():
                                             m_matrix=self.rxarm.M_matrix,
                                             s_list=self.rxarm.S_list)
                 phi = phi - np.pi / 18.0
+                if phi < 0:
+                    break
 
         # Try horizontal reach with phi = 0.0
         if not reachable_high or not reachable_low:
@@ -393,9 +402,9 @@ class StateMachine():
         displacement_unit =  displacement
 
         current_effort = self.rxarm.get_efforts()
-        # print("initial: ", current_effort)
+        print("initial: ", current_effort)
         temp_joint = np.array(joint_angles_1)
-        for i in range(5):
+        for i in range(10):
             displacement_unit = displacement_unit / 2
             temp_joint = temp_joint + displacement_unit
             move_time, ac_time = self.calMoveTime(temp_joint)
@@ -404,11 +413,15 @@ class StateMachine():
                                             accel_time=ac_time,
                                             blocking=True)
             effort = self.rxarm.get_efforts()
-            # print(effort)
+            print(effort)
+            # effort_diff = (effort[1] - current_effort[1])
+            # if effort[1] > -150:
+            #     break
             effort_diff = (effort - current_effort)[1:3]
-            # print("effort norm:", np.linalg.norm(effort_diff))
+            print("effort norm:", np.linalg.norm(effort_diff))
             if np.linalg.norm(effort_diff) > 300:
                 break
+
         self.rxarm.open_gripper()
         self.rxarm.gripper_state = False
         
@@ -432,8 +445,8 @@ class StateMachine():
             if pick_ret:
                 place_ret = self.auto_place(line_start_xyz)
                 if place_ret:
-                    y_step = 75
-                    line_start_xyz[1] = line_start_xyz[1] + y_step
+                    x_step = -75
+                    line_start_xyz[0] = line_start_xyz[0] + x_step
                     print("[LINE UP]    One block lined successfully!")
         
         print("[LINE UP]    Lining up finished")
@@ -445,11 +458,13 @@ class StateMachine():
         # !!! experiment with fix point open loop stack
         print("[STACK]  Start auto stacking...")
         for idx in indices:
+            print("[STACK]  Picking {}".format(blocks.colors[idx]))
             pick_ret = self.auto_pick(blocks.xyzs[idx], blocks.thetas[idx])
             if pick_ret:
+                print("[STACK]  Placing {}".format(blocks.colors[idx]))
                 place_ret = self.auto_place(stack_xyz)
                 if place_ret:
-                    height_step = 38 if blocks.sizes[idx] == 1 else 25 # increase stack height by block's size
+                    height_step = 38 if blocks.sizes[idx] == 0 else 20 # increase stack height by block's size
                     stack_xyz[2] = stack_xyz[2] + height_step
                     print("[STACK]  One block stacked successfully!")
 
@@ -462,38 +477,61 @@ class StateMachine():
         self.rxarm.go_to_sleep_pose(moving_time=2,
                                     accel_time=0.5,
                                     blocking=True)
+        if not self.calibrate():
+            self.next_state = "idle"
+            return
         self.detect(ignore=3)
         blocks = self.camera.block_detections
         
         target_color = 0
-        stack_xyz = [-250, 25, 0]
-        destack_xyz = [0, 75, 0]
-        stack_order = []
-        destack_order = []
+        stack_xyz = [-250, 25, -5]
+        destack_xyz = [-50, 200, 0]
+        # stack_order = []
+        # destack_order = []
+        # temp_order = []
 
         ############ Real Test ##############
-        # while blocks.detected_num>0:
-        #     for i in range(blocks.detected_num):
-        #         if blocks.colors[i] == target_color:
-        #             target_color = target_color + 1
-        #             stack_order.append(i)
-        #         else:
-        #             stack_xyz = self.auto_stack(blocks, stack_xyz, stack_order)
-        #             stacked_blocks_indices = blocks.xyzs[:, -1] > 50 # z val larger than 50 mm
-        #             destack_order = stacked_blocks_indices
-        #             destack_xyz = self.auto_lineup(blocks, destack_xyz, destack_order)
-        #             break
+        while blocks.detected_num>0:
+            stack_order = []
+            temp_order = []
+            destack_order = []
+            for i in range(blocks.detected_num):
+                if blocks.colors[i] == target_color:
+                    target_color = target_color + 1
+                    stack_order.append(i)
+                else:
+                    stack_xyz = self.auto_stack(blocks, stack_xyz, stack_order)
+                    # print(stack_xyz)
+                    print(blocks.xyzs[:, 2])
+                    for idx in range(blocks.detected_num):
+                        if blocks.xyzs[idx, 2] > 50:
+                            temp_order.append(idx)
+                    for idx in temp_order:
+                        if stack_order.count(idx)>0:
+                            continue
+                        else:
+                            destack_order.append(idx)
+                    # stacked_blocks_indices = blocks.xyzs[:, 2] > 50 # z val larger than 50 mm
+                    print(destack_order)
+                    destack_xyz = self.auto_lineup(blocks, destack_xyz, destack_order)
+                    break
             
-        #     self.rxarm.go_to_sleep_pose(moving_time=2,
-        #                                 accel_time=0.5,
-        #                                 blocking=True)
-        #     self.detect(ignore=3)
-        #     blocks = self.camera.block_detections
+            self.rxarm.go_to_home_pose(moving_time=2,
+                                        accel_time=0.5,
+                                        blocking=True)
+            self.rxarm.go_to_sleep_pose(moving_time=2,
+                                        accel_time=0.5,
+                                        blocking=True)
+            self.detect(ignore=3)
+            blocks = self.camera.block_detections
 
         ############ Simple Test ##############
         # Choose to stack or lineup
-        self.auto_stack(blocks, stack_xyz)
+        # self.auto_stack(blocks, stack_xyz)
         # self.auto_lineup(blocks, destack_xyz)
+        self.rxarm.go_to_home_pose(moving_time=2,
+                                    accel_time=0.5,
+                                    blocking=True)
         self.rxarm.go_to_sleep_pose(moving_time=2,
                                     accel_time=0.5,
                                     blocking=True)
@@ -541,6 +579,7 @@ class StateMachine():
         # print(self.camera.extrinsic_matrix)
         
         self.next_state = "idle"
+        return self.camera.cameraCalibrated
         
     def get_block_xyz_from_click(self, click_uvd):
         click_xyz = self.camera.coor_pixel_to_world(click_uvd[0], click_uvd[1], click_uvd[2]).flatten().tolist()
@@ -583,7 +622,7 @@ class StateMachine():
             blind_rectangle = [(int(img_w/2), int(img_h/2)), (img_w, img_h)]
 
         self.camera.detectBlocksInDepthImage(blind_rect=blind_rectangle)
-        rospy.sleep(0.05)
+        rospy.sleep(0.1)
         self.next_state = "idel"
 
     def initialize_rxarm(self):
