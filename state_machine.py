@@ -215,6 +215,8 @@ class StateMachine():
 
         # target_world_pos = self.camera.coor_pixel_to_world(block_uvd[0], block_uvd[1], block_uvd[2]).flatten().tolist()
         self.auto_pick(target_world_pos, block_ori)
+        if not self.next_state == "estop":
+            self.next_state = "idle"
 
     def auto_pick(self, target_world_pos, block_ori):
         ############ Planning #############
@@ -294,8 +296,6 @@ class StateMachine():
                                         accel_time=ac_time,
                                         blocking=True)
 
-        if not self.next_state == "estop":
-            self.next_state = "idle"
         print("[PICK] PICK finished!")
         return True
 
@@ -316,6 +316,8 @@ class StateMachine():
         # target_world_pos = self.camera.coor_pixel_to_world(block_uvd[0], block_uvd[1], block_uvd[2]).flatten().tolist()
         self.auto_place(target_world_pos, block_ori)
 
+        if not self.next_state == "estop":
+            self.next_state = "idle"
 
     def auto_place(self, target_world_pos, _block_ori=None):
         if _block_ori is not None:
@@ -417,16 +419,16 @@ class StateMachine():
                                         blocking=True)
 
 
-        if not self.next_state == "estop":
-            self.next_state = "idle"
         print("[PLACE]  PLACE finished!")
         return True
 
-    def auto_lineup(self, blocks, line_start_xyz):
+    def auto_lineup(self, blocks, line_start_xyz, indices=None):
+        if indices is None:
+            indices = range(blocks.detected_num)
         # !!! line up incremental alone y-axis
         print("[LINE UP]    Start auto lining up...")
-        for i in range(blocks.detected_num):
-            pick_ret = self.auto_pick(blocks.xyzs[i], blocks.thetas[i])
+        for idx in indices:
+            pick_ret = self.auto_pick(blocks.xyzs[idx], blocks.thetas[idx])
             if pick_ret:
                 place_ret = self.auto_place(line_start_xyz)
                 if place_ret:
@@ -435,32 +437,69 @@ class StateMachine():
                     print("[LINE UP]    One block lined successfully!")
         
         print("[LINE UP]    Lining up finished")
+        return line_start_xyz
 
-    def auto_stack(self, blocks, stack_xyz):
+    def auto_stack(self, blocks, stack_xyz, indices=None):
+        if indices is None:
+            indices = range(blocks.detected_num)
         # !!! experiment with fix point open loop stack
         print("[STACK]  Start auto stacking...")
-        for i in range(blocks.detected_num):
-            pick_ret = self.auto_pick(blocks.xyzs[i], blocks.thetas[i])
+        for idx in indices:
+            pick_ret = self.auto_pick(blocks.xyzs[idx], blocks.thetas[idx])
             if pick_ret:
                 place_ret = self.auto_place(stack_xyz)
                 if place_ret:
-                    height_step = 38 if blocks.sizes[i] == 1 else 25 # increase stack height by block's size
+                    height_step = 38 if blocks.sizes[idx] == 1 else 25 # increase stack height by block's size
                     stack_xyz[2] = stack_xyz[2] + height_step
                     print("[STACK]  One block stacked successfully!")
 
         print("[STACK]  Stacking finished")
+        return stack_xyz
 
     def task_test(self):
+        self.current_state = "task_test"
+        self.status_message = "This is the real autonomy!"
         self.rxarm.go_to_sleep_pose(moving_time=2,
                                     accel_time=0.5,
                                     blocking=True)
-        self.detect()
+        self.detect(ignore=3)
         blocks = self.camera.block_detections
-        # self.auto_stack(blocks, [-250, 75, 0])
-        self.auto_lineup(blocks, [-50, 75, 0])
+        
+        target_color = 0
+        stack_xyz = [-250, 25, 0]
+        destack_xyz = [0, 75, 0]
+        stack_order = []
+        destack_order = []
+
+        ############ Real Test ##############
+        # while blocks.detected_num>0:
+        #     for i in range(blocks.detected_num):
+        #         if blocks.colors[i] == target_color:
+        #             target_color = target_color + 1
+        #             stack_order.append(i)
+        #         else:
+        #             stack_xyz = self.auto_stack(blocks, stack_xyz, stack_order)
+        #             stacked_blocks_indices = blocks.xyzs[:, -1] > 50 # z val larger than 50 mm
+        #             destack_order = stacked_blocks_indices
+        #             destack_xyz = self.auto_lineup(blocks, destack_xyz, destack_order)
+        #             break
+            
+        #     self.rxarm.go_to_sleep_pose(moving_time=2,
+        #                                 accel_time=0.5,
+        #                                 blocking=True)
+        #     self.detect(ignore=3)
+        #     blocks = self.camera.block_detections
+
+        ############ Simple Test ##############
+        # Choose to stack or lineup
+        self.auto_stack(blocks, stack_xyz)
+        # self.auto_lineup(blocks, destack_xyz)
         self.rxarm.go_to_sleep_pose(moving_time=2,
                                     accel_time=0.5,
                                     blocking=True)
+
+        if not self.next_state == "estop":
+            self.next_state = "idle"
 
 
     def calibrate(self):
@@ -520,13 +559,30 @@ class StateMachine():
         else:
             return click_xyz, 0.0
 
-    def detect(self):
+    def detect(self, ignore=None):
         """!
         @brief      Detect the blocks
         """
+        # 720x1280
+        # -----------------
+        # |  2    |    1  |
+        # -----------------
+        # |  3  |ARM|  4  |
+        # -----------------
         self.current_state = "detect"
         self.status_message = "Detecting blocks..."
-        self.camera.detectBlocksInDepthImage()
+        img_h, img_w = 720, 1280
+        blind_rectangle = None
+        if ignore==1:
+            blind_rectangle = [(int(img_w/2), 0), (img_w, int(img_h/2))]
+        elif ignore==2:
+            blind_rectangle = [(0, 0), (int(img_w/2), int(img_h/2))]
+        elif ignore==3:
+            blind_rectangle = [(0, int(img_h/2)), (int(img_w/2), img_h)]
+        elif ignore==4:
+            blind_rectangle = [(int(img_w/2), int(img_h/2)), (img_w, img_h)]
+
+        self.camera.detectBlocksInDepthImage(blind_rect=blind_rectangle)
         rospy.sleep(0.05)
         self.next_state = "idel"
 
