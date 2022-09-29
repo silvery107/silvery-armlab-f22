@@ -393,7 +393,7 @@ class StateMachine():
         current_effort = self.rxarm.get_efforts()
         # print("initial: ", current_effort)
         temp_joint = np.array(joint_angles_1)
-        for i in range(10):
+        for i in range(5):
             displacement_unit = displacement_unit / 2
             temp_joint = temp_joint + displacement_unit
             move_time, ac_time = self.calMoveTime(temp_joint)
@@ -424,16 +424,17 @@ class StateMachine():
 
     def auto_lineup(self, blocks, line_start_xyz):
         # !!! line up incremental alone y-axis
-        print("[LINE UP]  Start auto line up...")
+        print("[LINE UP]    Start auto lining up...")
         for i in range(blocks.detected_num):
             pick_ret = self.auto_pick(blocks.xyzs[i], blocks.thetas[i])
             if pick_ret:
                 place_ret = self.auto_place(line_start_xyz)
                 if place_ret:
-                    y_step = 50
+                    y_step = 75
                     line_start_xyz[1] = line_start_xyz[1] + y_step
-                    print("[LINE UP]  One block lined successfully!")
-
+                    print("[LINE UP]    One block lined successfully!")
+        
+        print("[LINE UP]    Lining up finished")
 
     def auto_stack(self, blocks, stack_xyz):
         # !!! experiment with fix point open loop stack
@@ -447,12 +448,19 @@ class StateMachine():
                     stack_xyz[2] = stack_xyz[2] + height_step
                     print("[STACK]  One block stacked successfully!")
 
+        print("[STACK]  Stacking finished")
+
     def task_test(self):
-        self.rxarm.sleep()
+        self.rxarm.go_to_sleep_pose(moving_time=2,
+                                    accel_time=0.5,
+                                    blocking=True)
         self.detect()
-        self.rxarm.initialize()
         blocks = self.camera.block_detections
-        self.auto_stack(blocks, [-250, 75, 0])
+        # self.auto_stack(blocks, [-250, 75, 0])
+        self.auto_lineup(blocks, [-50, 75, 0])
+        self.rxarm.go_to_sleep_pose(moving_time=2,
+                                    accel_time=0.5,
+                                    blocking=True)
 
 
     def calibrate(self):
