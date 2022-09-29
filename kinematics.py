@@ -227,7 +227,7 @@ def IK_geometric(pose, block_ori=None, dh_params=None, m_matrix=None, s_list=Non
     xc, yc, zc = pose[0:3] - l4*l4_unit # xyz of the wrist (t4)
     # print((xc,yc,zc))
     if np.sqrt(xc*xc + yc*yc + (zc - l1)*(zc - l1)) > (l2 + l3):
-        print("[KINEMATICS] Pose is unreachable! Cannot form a triangle.")
+        # print("[KINEMATICS] Pose is unreachable! Cannot form a triangle.")
         return False, [0, 0, 0, 0, 0]
 
     r = np.sqrt(xc*xc + yc*yc)   # (r, s) are planar xy of the wrist 
@@ -274,7 +274,7 @@ def IK_geometric(pose, block_ori=None, dh_params=None, m_matrix=None, s_list=Non
     # print('Tgt Pose: {} '.format(pose))
     # print('FK Pose:  {}'.format(fk_pose))
     if np.allclose(compare, np.zeros_like(compare), rtol=1e-1, atol=1e-1):
-        print('[KINEMATICS] Pose matches with FK.')
+        # print('[KINEMATICS] Pose matches with FK.')
         return True, [theta1, theta2, -theta3, -theta4, theta5] # reverse t3 and t4 to match the real motor setting
     else:
         print('[KINEMATICS] No match to the FK pose!!!')
