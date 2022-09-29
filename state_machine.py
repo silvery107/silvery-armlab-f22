@@ -199,6 +199,7 @@ class StateMachine():
         self.status_message = "State: Pick - Click to pick"
         self.current_state = "pick"
         self.camera.new_click = False
+        print("[CLICK PICK] Please click one point to pick...")
         while not self.camera.new_click:
             rospy.sleep(0.05)
         
@@ -211,8 +212,10 @@ class StateMachine():
         target_world_pos = self.camera.coor_pixel_to_world(block_uvd[0], block_uvd[1], block_uvd[2]).flatten().tolist()
 
         ############ Planning #############
+        print("[CLICK PICK] Planning waypoints...")
         pick_height_offset = 10
         pick_wrist_offset = np.pi/18.0/2.0
+        joint_angles_home = [0, 0, 0, 0, 0]
         target_world_pos[2] = target_world_pos[2] + pick_height_offset
         above_world_pos = deepcopy(target_world_pos)
         above_world_pos[2] = target_world_pos[2] + pick_height_offset + 80
@@ -242,13 +245,15 @@ class StateMachine():
         if not reachable_high or not reachable_low:
             if not self.next_state == "estop":
                 self.next_state = "idle"
-            print("Clicked point is unreachable, remain idle!!!")
+            print("[CLICK PICK] Clicked point is unreachable, remain idle!!!")
             return
         
         ############ Executing #############
+        print("[CLICK PICK] Executing waypoints...")
         # 1. go to the home pose
-        self.rxarm.go_to_home_pose(moving_time=2.0,
-                                    accel_time=0.5,
+        move_time, ac_time = self.calMoveTime(joint_angles_home)
+        self.rxarm.go_to_home_pose(moving_time=move_time,
+                                    accel_time=ac_time,
                                     blocking=True)
         if not self.rxarm.gripper_state:
             self.rxarm.open_gripper()
@@ -285,11 +290,13 @@ class StateMachine():
 
         if not self.next_state == "estop":
             self.next_state = "idle"
+        print("[CLICK PICK] Click pick finished!")
 
     def place(self):
         self.status_message = "State: Place - Click to place"
         self.current_state = "place"
         self.camera.new_click = False
+        print("[CLICK PLACE]    Please click one point to pick...")
         while not self.camera.new_click:
             rospy.sleep(0.1)
         
@@ -302,6 +309,7 @@ class StateMachine():
         target_world_pos = self.camera.coor_pixel_to_world(block_uvd[0], block_uvd[1], block_uvd[2]).flatten().tolist()
 
         ############ Planning #############
+        print("[CLICK PLACE]    Planning waypoints...")
         place_height_offset = 30
         place_wrist_offset = np.pi/18.0/2.0
         target_world_pos[2] = target_world_pos[2] + place_height_offset
@@ -351,10 +359,11 @@ class StateMachine():
         if not reachable_high or not reachable_low:
             if not self.next_state == "estop":
                 self.next_state = "idle"
-            print("Clicked point is unreachable, remain idle!!!")
+            print("[CLICK PLACE]    Clicked point is unreachable, remain idle!!!")
             return
 
         ############ Executing #############
+        print("[CLICK PLACE]    Executing waypoints...")
         # 1. go to point above target pose
         move_time, ac_time = self.calMoveTime(joint_angles_1)
         self.rxarm.set_joint_positions(joint_angles_1,
@@ -368,7 +377,7 @@ class StateMachine():
         displacement_unit =  displacement
 
         current_effort = self.rxarm.get_efforts()
-        print("initial: ", current_effort)
+        # print("initial: ", current_effort)
         temp_joint = np.array(joint_angles_1)
         for i in range(10):
             displacement_unit = displacement_unit / 2
@@ -381,7 +390,7 @@ class StateMachine():
             effort = self.rxarm.get_efforts()
             # print(effort)
             effort_diff = (effort - current_effort)[1:3]
-            print("effort norm:", np.linalg.norm(effort_diff))
+            # print("effort norm:", np.linalg.norm(effort_diff))
             if np.linalg.norm(effort_diff) > 300:
                 break
         self.rxarm.open_gripper()
@@ -396,6 +405,7 @@ class StateMachine():
 
         if not self.next_state == "estop":
             self.next_state = "idle"
+        print("[CLICK PLACE]    Click place finished!")
 
     def calibrate(self):
         """!
@@ -403,12 +413,12 @@ class StateMachine():
         """
         self.current_state = "calibrate"
 
-        """TODO Perform camera calibration routine here"""
+        """Perform camera calibration routine here"""
         self.status_message = "Calibration - Completed Calibration"
         tagPoints = np.zeros((4, 3), dtype=DTYPE)
         if len(self.camera.tag_detections.detections)<4:
             self.next_state = "idel"
-            print("Calibrate failed. Detected less than 4 tags.")
+            print("[CALIBRATE]  Calibration failed! Less than 4 tags were detected.")
             return
         for detection in self.camera.tag_detections.detections:
             tagPoints[detection.id[0] - 1, 0] = detection.pose.pose.pose.position.x * 1000
@@ -432,7 +442,8 @@ class StateMachine():
         self.camera.extrinsic_matrix = np.row_stack((extrinsic_temp, extrinsic_pad)) # 4x4
         self.camera.extrinsic_matrix_inv = np.linalg.pinv(self.camera.extrinsic_matrix)
         self.camera.cameraCalibrated = True
-        print(self.camera.extrinsic_matrix)
+        print("[CALIBRATE]  Calibration successed!")
+        # print(self.camera.extrinsic_matrix)
         
         self.next_state = "idle"
         
@@ -497,4 +508,4 @@ class StateMachineThread(QThread):
         while True:
             self.sm.run()
             self.updateStatusMessage.emit(self.sm.status_message)
-            rospy.sleep(0.02)
+            rospy.sleep(0.02) # 50 Hz

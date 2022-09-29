@@ -5,12 +5,11 @@ TODO: Here is where you will write all of your kinematics functions
 There are some functions to start with, you may need to implement a few more
 """
 
-import math
 import numpy as np
 # expm is a matrix exponential function
 from scipy.linalg import expm
 
-from utils import DTYPE, Quaternion
+from utils import DTYPE, Quaternion, rot_to_rpy
 from math import sin, cos
 
 
@@ -160,20 +159,20 @@ def FK_pox(joint_angles, m_mat, s_lst):
     """
     T = np.identity(4, dtype=DTYPE)
     for idx, t in enumerate(joint_angles):
-        w = s_lst[idx,0:3]
-        v = s_lst[idx,3:]
+        w = s_lst[idx, 0:3]
+        v = s_lst[idx, 3:]
         
         wmat = to_w_matrix(w)
-        smat = to_s_matrix(wmat,v)
+        smat = to_s_matrix(wmat, v)
         est = expm(smat * t)
         T = np.matmul(T, est)
     
-    T = np.matmul(T,m_mat)
+    T = np.matmul(T, m_mat)
     rot = np.array([[0, -1, 0, 0],
                     [1, 0, 0, 0],
                     [0, 0, 1, 0],
-                    [0, 0, 0, 1]])
-    T = np.matmul(rot,T)
+                    [0, 0, 0, 1]], dtype=DTYPE)
+    T = np.matmul(rot, T)
     pose = get_pose_from_T(T)
     return pose
 
@@ -201,14 +200,6 @@ def to_s_matrix(w, v):
     smat = np.row_stack((smat, np.array([0,0,0,0])))
     return smat
 
-# def IK_multireach(pose, dh_params=None, m_matrix=None, s_list=None):
-#     reachable_1, joint_angles_1 = IK_geometric([above_world_pos[0], 
-#                                     above_world_pos[1], 
-#                                     above_world_pos[2], 
-#                                     np.pi/2],
-#                                     m_matrix=self.rxarm.M_matrix,
-#                                     s_list=self.rxarm.S_list)
-
 
 def IK_geometric(pose, block_ori=None, dh_params=None, m_matrix=None, s_list=None):
     """!
@@ -231,12 +222,12 @@ def IK_geometric(pose, block_ori=None, dh_params=None, m_matrix=None, s_list=Non
     theta1 = np.arctan2(-pose[0], pose[1])
 
     phi = pose[3]
-    # r: orientation of l4 w.r.t. origion
-    l4_unit = np.array([-np.sin(theta1)*np.cos(phi), np.cos(theta1)*np.cos(phi), -np.sin(phi)])
+    # l4_unit: orientation of l4 w.r.t. origion
+    l4_unit = np.array([-np.sin(theta1)*np.cos(phi), np.cos(theta1)*np.cos(phi), -np.sin(phi)], dtype=DTYPE)
     xc, yc, zc = pose[0:3] - l4*l4_unit # xyz of the wrist (t4)
     # print((xc,yc,zc))
     if np.sqrt(xc*xc + yc*yc + (zc - l1)*(zc - l1)) > (l2 + l3):
-        print("Pose is unreachable!!! Cannot form a triangle.")
+        print("[KINEMATICS] Pose is unreachable! Cannot form a triangle.")
         return False, [0, 0, 0, 0, 0]
 
     r = np.sqrt(xc*xc + yc*yc)   # (r, s) are planar xy of the wrist 
@@ -252,8 +243,7 @@ def IK_geometric(pose, block_ori=None, dh_params=None, m_matrix=None, s_list=Non
     theta2 = np.pi/2 - t_offset - theta2 # offset
 
     theta4 = phi - (theta2 + theta3) # by geometry
-    # assert t4 > 0
-    
+
     # a. vertical pick: depends on block orientation; 
     # b. hori. pick: 0 
     if block_ori is None:
@@ -265,7 +255,7 @@ def IK_geometric(pose, block_ori=None, dh_params=None, m_matrix=None, s_list=Non
                 theta5 = theta5 - np.pi/2.0
             elif theta5 < - np.pi/4.0:
                 theta5 = theta5 + np.pi/2.0
-            
+            # Additional rotation to enforce longitudinal pick
             if theta5 > 0:
                 theta5 = theta5 - np.pi/2.0
             else:
@@ -273,77 +263,19 @@ def IK_geometric(pose, block_ori=None, dh_params=None, m_matrix=None, s_list=Non
         else:
             theta5 = 0
 
-    joint_angles = [theta1, theta2, theta3, theta4, theta5]
-    # print(joint_angles)
-
     if m_matrix is None or s_list is None:
-        return [theta1, theta2, -theta3, -theta4, theta5] # reverse theta3 and theta4 to match the real motor setting
+        return [theta1, theta2, -theta3, -theta4, theta5] # reverse t3 and t4 to match the real motor setting
 
     # !!! Test IK with FK
+    joint_angles = [theta1, theta2, theta3, theta4, theta5]
     # print("IK angles {}".format(joint_angles))
     fk_pose = FK_pox(joint_angles, m_matrix, s_list)
     compare = fk_pose - pose
     # print('Tgt Pose: {} '.format(pose))
     # print('FK Pose:  {}'.format(fk_pose))
     if np.allclose(compare, np.zeros_like(compare), rtol=1e-1, atol=1e-1):
-        # print('Pose matches with FK')
-        return True, [theta1, theta2, -theta3, -theta4, theta5] # reverse theta3 and theta4 to match the real motor setting
+        print('[KINEMATICS] Pose matches with FK.')
+        return True, [theta1, theta2, -theta3, -theta4, theta5] # reverse t3 and t4 to match the real motor setting
     else:
-        # print('No match to the FK pose found!!')
+        print('[KINEMATICS] No match to the FK pose!!!')
         return False, [0, 0, 0, 0, 0]
-
-def rot_to_quat(rot):
-    """
-    * Convert a coordinate transformation matrix to an orientation quaternion.
-    """
-    q = Quaternion()
-    r = rot.T.copy() # important
-    tr = np.trace(r)
-    if tr>0.0:
-        S = math.sqrt(tr + 1.0) * 2.0
-        q.w = 0.25 * S
-        q.x = (r[2,1] - r[1,2])/S
-        q.y = (r[0,2] - r[2,0])/S
-        q.z = (r[1,0] - r[0,1])/S
-
-    elif (r[0, 0] > r[1, 1]) and (r[0, 0] > r[2, 2]):
-        S = math.sqrt(1.0 + r[0,0] - r[1,1] - r[2,2]) * 2.0
-        q.w = (r[2,1] - r[1,2])/S
-        q.x = 0.25 * S
-        q.y = (r[0,1] + r[1,0])/S
-        q.z = (r[0,2] + r[2,0])/S
-
-    elif r[1,1]>r[2,2]:
-        S = math.sqrt(1.0 + r[1,1] -r[0,0] -r[2,2]) * 2.0
-        q.w = (r[0,2] - r[2,0])/S
-        q.x = (r[0,1] + r[1,0])/S
-        q.y = 0.25 * S
-        q.z = (r[1,2] + r[2,1])/S
-        
-    else:
-        S = math.sqrt(1.0 + r[2,2] - r[0,0] - r[1,1]) * 2.0
-        q.w = (r[1,0] - r[0,1])/S
-        q.x = (r[0,2] + r[2,0])/S
-        q.y = (r[1,2] + r[2,1])/S
-        q.z = 0.25 * S
-    
-    return q
-
-def quat_to_rpy(q):
-    """
-    * Convert a quaternion to RPY. Return
-    * angles in (roll, pitch, yaw).
-    """
-    rpy = np.zeros((3,1), dtype=DTYPE)
-    as_ = np.min([-2.*(q.x*q.z-q.w*q.y),.99999])
-    # roll
-    rpy[0] = np.arctan2(2.*(q.y*q.z+q.w*q.x), q.w*q.w - q.x*q.x - q.y*q.y + q.z*q.z)
-    # pitch
-    rpy[1] = np.arcsin(as_)
-    # yaw
-    rpy[2] = np.arctan2(2.*(q.x*q.y+q.w*q.z), q.w*q.w + q.x*q.x - q.y*q.y - q.z*q.z)
-    return rpy
-
-def rot_to_rpy(R):
-    return quat_to_rpy(rot_to_quat(R))
-
