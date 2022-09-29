@@ -237,7 +237,7 @@ class Gui(QMainWindow):
             self.ui.rdoutMousePixels.setText("(%.0f,%.0f,%.0f)" %
                                              (pt.x(), pt.y(), z))
 
-            world_pos = self.camera.coor_pixel_to_world(pt.x(), pt.y(), z)
+            world_pos = self.camera.coord_pixel_to_world(pt.x(), pt.y(), z)
             # self.ui.rdoutMouseWorld.setText("(-,-,-)")
             self.ui.rdoutMouseWorld.setText("(%.0f,%.0f,%.0f)" %
                                              (world_pos[0], world_pos[1], world_pos[2]))
