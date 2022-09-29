@@ -298,7 +298,8 @@ class Camera():
             depth_single = cv2.bitwise_and(self.ProcessDepthFrameRaw, self.ProcessDepthFrameRaw, mask=mask_single)
             depth_array = depth_single[depth_single>0]
             mode, count = stats.mode(depth_array)
-            depth_new = cv2.inRange(depth_single, lower, int(mode)+5)
+            # !!! Attention to the mode offset, it determines how much of the top surface area will be reserved
+            depth_new = cv2.inRange(depth_single, lower, int(mode)+4)
             contours_new, _ = cv2.findContours(depth_new, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[-2:]
             contours_new_valid = max(contours_new, key=cv2.contourArea) # find the largest contour
             M = cv2.moments(contours_new_valid)
