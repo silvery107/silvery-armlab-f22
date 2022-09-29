@@ -340,7 +340,7 @@ class Camera():
         pos_camera = z * np.matmul(self.intrinsic_matrix_inv, index)
         temp_pos = np.array([pos_camera[0][0], pos_camera[1][0], pos_camera[2][0], 1]).reshape((4,1))
         world_pos = np.matmul(self.extrinsic_matrix_inv, temp_pos)
-        return world_pos
+        return world_pos.flatten()
 
 
 class TagImageListener:
