@@ -95,3 +95,59 @@ class Quaternion:
     
     def __str__(self):
         return '['+str(self.w)+', '+str(self.x)+', '+str(self.y)+', '+str(self.z)+']'
+
+
+def rot_to_quat(rot):
+    """
+    * Convert a coordinate transformation matrix to an orientation quaternion.
+    """
+    q = Quaternion()
+    r = rot.T.copy() # important
+    tr = np.trace(r)
+    if tr>0.0:
+        S = math.sqrt(tr + 1.0) * 2.0
+        q.w = 0.25 * S
+        q.x = (r[2,1] - r[1,2])/S
+        q.y = (r[0,2] - r[2,0])/S
+        q.z = (r[1,0] - r[0,1])/S
+
+    elif (r[0, 0] > r[1, 1]) and (r[0, 0] > r[2, 2]):
+        S = math.sqrt(1.0 + r[0,0] - r[1,1] - r[2,2]) * 2.0
+        q.w = (r[2,1] - r[1,2])/S
+        q.x = 0.25 * S
+        q.y = (r[0,1] + r[1,0])/S
+        q.z = (r[0,2] + r[2,0])/S
+
+    elif r[1,1]>r[2,2]:
+        S = math.sqrt(1.0 + r[1,1] -r[0,0] -r[2,2]) * 2.0
+        q.w = (r[0,2] - r[2,0])/S
+        q.x = (r[0,1] + r[1,0])/S
+        q.y = 0.25 * S
+        q.z = (r[1,2] + r[2,1])/S
+        
+    else:
+        S = math.sqrt(1.0 + r[2,2] - r[0,0] - r[1,1]) * 2.0
+        q.w = (r[1,0] - r[0,1])/S
+        q.x = (r[0,2] + r[2,0])/S
+        q.y = (r[1,2] + r[2,1])/S
+        q.z = 0.25 * S
+    
+    return q
+
+def quat_to_rpy(q):
+    """
+    * Convert a quaternion to RPY. Return
+    * angles in (roll, pitch, yaw).
+    """
+    rpy = np.zeros((3,1), dtype=DTYPE)
+    as_ = np.min([-2.*(q.x*q.z-q.w*q.y),.99999])
+    # roll
+    rpy[0] = np.arctan2(2.*(q.y*q.z+q.w*q.x), q.w*q.w - q.x*q.x - q.y*q.y + q.z*q.z)
+    # pitch
+    rpy[1] = np.arcsin(as_)
+    # yaw
+    rpy[2] = np.arctan2(2.*(q.x*q.y+q.w*q.z), q.w*q.w + q.x*q.x - q.y*q.y - q.z*q.z)
+    return rpy
+
+def rot_to_rpy(R):
+    return quat_to_rpy(rot_to_quat(R))
