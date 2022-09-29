@@ -24,7 +24,7 @@ class BlockDetections():
         self.detected_num = 0
         self.small_num = 0
         self.contours = None
-        self.colors = None # range from 0 to 6 w.r. to rainbow color order
+        self.colors = None # range from 0 to 5 w.r. to rainbow color order
         self.thetas = None
         self.sizes = None # 1 for small and 0 for large
         self.uvds = None
@@ -113,14 +113,13 @@ class Camera():
         """ block info """
         self.block_detections = BlockDetections()
         self.font = cv2.FONT_HERSHEY_SIMPLEX
-        self.color_id = ['red', 'orange', 'yellow', 'green', 'blue', 'purple', 'pink']
+        self.color_id = ['red', 'orange', 'yellow', 'green', 'blue', 'purple']
         self.color_rgb_mean = np.array([[127, 19, 30],
                                         [164, 66, 5],
                                         [218, 180, 30],
                                         [43, 118, 85],
                                         [0, 65, 117],
-                                        [65, 45, 73],
-                                        [147, 45, 70]],
+                                        [65, 45, 73]],
                                         dtype=np.uint8)
         self.color_lab_mean = cv2.cvtColor(self.color_rgb_mean[:,None,:], cv2.COLOR_RGB2LAB).squeeze()
         self.size_id = ["large", "small"]
@@ -320,7 +319,7 @@ class Camera():
                 self.block_detections.sizes.append(0) # 0 for large
             block_ori = - cv2.minAreaRect(contours_new_valid)[2] # turn the range from [-90, 0) to (0, 90]
             self.block_detections.uvds.append([cx, cy, cz])
-            self.block_detections.xyzs.append(self.coor_pixel_to_world(cx, cy, cz))
+            self.block_detections.xyzs.append(self.coord_pixel_to_world(cx, cy, cz))
             self.block_detections.contours.append(contours_new_valid)
             self.block_detections.thetas.append(np.deg2rad(block_ori))
             self.block_detections.colors.append(self.retrieve_area_color(self.ProcessVideoFrameLab, contours_new_valid))
@@ -339,7 +338,7 @@ class Camera():
         # return self.color_id[np.argmin(dist_norm)]
         return np.argmin(dist_norm)
 
-    def coor_pixel_to_world(self, u, v, z):
+    def coord_pixel_to_world(self, u, v, z):
         index = np.array([u, v, 1]).reshape((3,1))
         pos_camera = z * np.matmul(self.intrinsic_matrix_inv, index)
         temp_pos = np.array([pos_camera[0][0], pos_camera[1][0], pos_camera[2][0], 1]).reshape((4,1))
