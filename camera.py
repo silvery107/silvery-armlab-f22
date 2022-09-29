@@ -26,7 +26,7 @@ class BlockDetections():
         self.contours = None
         self.colors = None # range from 0 to 6 w.r. to rainbow color order
         self.thetas = None
-        self.sizes = None # 0 for small and 1 for large
+        self.sizes = None # 1 for small and 0 for large
         self.uvds = None
         self.xyzs = None
         self.all_contours = None
@@ -76,6 +76,7 @@ class BlockDetections():
         l_rainbow_order = np.argsort(self.colors[small_num:])
         self._sort_by_idx(l_rainbow_order, small_num, self.detected_num)
         self.small_num = small_num
+        print(self.colors)
 
 
 class Camera():
@@ -122,7 +123,7 @@ class Camera():
                                         [147, 45, 70]],
                                         dtype=np.uint8)
         self.color_lab_mean = cv2.cvtColor(self.color_rgb_mean[:,None,:], cv2.COLOR_RGB2LAB).squeeze()
-        self.size_id = ["small", "large"]
+        self.size_id = ["large", "small"]
 
         self.loadCameraCalibration("config/camera_calib.yaml")
 
@@ -313,10 +314,10 @@ class Camera():
             cy = int(M['m01']/M['m00'])
             cz = self.ProcessDepthFrameRaw[cy, cx]
             # !!! size classification: attention to this moment threshold
-            if M["m00"] < 1000:
-                self.block_detections.sizes.append(0) # 0 for small
+            if M["m00"] < 800:
+                self.block_detections.sizes.append(1) # 1 for small
             else:
-                self.block_detections.sizes.append(1) # 1 for large
+                self.block_detections.sizes.append(0) # 0 for large
             block_ori = - cv2.minAreaRect(contours_new_valid)[2] # turn the range from [-90, 0) to (0, 90]
             self.block_detections.uvds.append([cx, cy, cz])
             self.block_detections.xyzs.append(self.coor_pixel_to_world(cx, cy, cz))
