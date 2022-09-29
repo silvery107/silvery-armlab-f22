@@ -108,6 +108,8 @@ class Gui(QMainWindow):
         self.ui.btnUser11.clicked.connect(partial(nxt_if_arm_init, 'pick'))
         self.ui.btnUser12.setText('Click Place')
         self.ui.btnUser12.clicked.connect(partial(nxt_if_arm_init, 'place'))
+        self.ui.btnUser9.setText('Test Autonomy')
+        self.ui.btnUser9.clicked.connect(partial(nxt_if_arm_init, 'task_test'))
 
         # Sliders
         for sldr in self.joint_sliders:

@@ -98,6 +98,10 @@ class StateMachine():
         if self.next_state == "place":
             self.place()
 
+        if self.next_state == "task_test":
+            self.task_test()
+
+
     """Functions run for each state"""
 
     def manual(self):
@@ -207,12 +211,14 @@ class StateMachine():
         pt = self.camera.last_click
         z = self.camera.DepthFrameRaw[pt[1]][pt[0]]
         click_uvd = np.append(pt, z)
-        block_uvd, block_ori = self.get_block_uvd_from_click(click_uvd)
+        target_world_pos, block_ori = self.get_block_xyz_from_click(click_uvd)
 
-        target_world_pos = self.camera.coor_pixel_to_world(block_uvd[0], block_uvd[1], block_uvd[2]).flatten().tolist()
+        # target_world_pos = self.camera.coor_pixel_to_world(block_uvd[0], block_uvd[1], block_uvd[2]).flatten().tolist()
+        self.auto_pick(target_world_pos, block_ori)
 
+    def auto_pick(self, target_world_pos, block_ori):
         ############ Planning #############
-        print("[CLICK PICK] Planning waypoints...")
+        print("[PICK] Planning waypoints...")
         pick_height_offset = 10
         pick_wrist_offset = np.pi/18.0/2.0
         joint_angles_home = [0, 0, 0, 0, 0]
@@ -245,11 +251,11 @@ class StateMachine():
         if not reachable_high or not reachable_low:
             if not self.next_state == "estop":
                 self.next_state = "idle"
-            print("[CLICK PICK] Clicked point is unreachable, remain idle!!!")
-            return
+            print("[PICK] Target point is unreachable, remain idle!!!")
+            return False
         
         ############ Executing #############
-        print("[CLICK PICK] Executing waypoints...")
+        print("[PICK] Executing waypoints...")
         # 1. go to the home pose
         move_time, ac_time = self.calMoveTime(joint_angles_home)
         self.rxarm.go_to_home_pose(moving_time=move_time,
@@ -290,7 +296,8 @@ class StateMachine():
 
         if not self.next_state == "estop":
             self.next_state = "idle"
-        print("[CLICK PICK] Click pick finished!")
+        print("[PICK] PICK finished!")
+        return True
 
     def place(self):
         self.status_message = "State: Place - Click to place"
@@ -304,12 +311,19 @@ class StateMachine():
         pt = self.camera.last_click
         z = self.camera.DepthFrameRaw[pt[1]][pt[0]]
         click_uvd = np.append(pt, z)
-        block_uvd, block_ori = self.get_block_uvd_from_click(click_uvd)
+        target_world_pos, block_ori = self.get_block_xyz_from_click(click_uvd)
 
-        target_world_pos = self.camera.coor_pixel_to_world(block_uvd[0], block_uvd[1], block_uvd[2]).flatten().tolist()
+        # target_world_pos = self.camera.coor_pixel_to_world(block_uvd[0], block_uvd[1], block_uvd[2]).flatten().tolist()
+        self.auto_place(target_world_pos, block_ori)
 
+
+    def auto_place(self, target_world_pos, _block_ori=None):
+        if _block_ori is not None:
+            block_ori = _block_ori
+        else:
+            block_ori = 0.0
         ############ Planning #############
-        print("[CLICK PLACE]    Planning waypoints...")
+        print("[PLACE]  Planning waypoints...")
         place_height_offset = 30
         place_wrist_offset = np.pi/18.0/2.0
         target_world_pos[2] = target_world_pos[2] + place_height_offset
@@ -323,7 +337,7 @@ class StateMachine():
                                     target_world_pos[1], 
                                     target_world_pos[2], 
                                     np.pi/2],
-                                    block_ori=0,
+                                    block_ori=block_ori,
                                     m_matrix=self.rxarm.M_matrix,
                                     s_list=self.rxarm.S_list)
 
@@ -334,7 +348,7 @@ class StateMachine():
                                             above_world_pos[1], 
                                             above_world_pos[2], 
                                             phi],
-                                            block_ori=0,
+                                            block_ori=block_ori,
                                             m_matrix=self.rxarm.M_matrix,
                                             s_list=self.rxarm.S_list)
                 phi = phi - np.pi / 18.0
@@ -359,11 +373,11 @@ class StateMachine():
         if not reachable_high or not reachable_low:
             if not self.next_state == "estop":
                 self.next_state = "idle"
-            print("[CLICK PLACE]    Clicked point is unreachable, remain idle!!!")
-            return
+            print("[PLACE]  Target point is unreachable, remain idle!!!")
+            return False
 
         ############ Executing #############
-        print("[CLICK PLACE]    Executing waypoints...")
+        print("[PLACE]  Executing waypoints...")
         # 1. go to point above target pose
         move_time, ac_time = self.calMoveTime(joint_angles_1)
         self.rxarm.set_joint_positions(joint_angles_1,
@@ -405,7 +419,41 @@ class StateMachine():
 
         if not self.next_state == "estop":
             self.next_state = "idle"
-        print("[CLICK PLACE]    Click place finished!")
+        print("[PLACE]  PLACE finished!")
+        return True
+
+    def auto_lineup(self, blocks, line_start_xyz):
+        # !!! line up incremental alone y-axis
+        print("[LINE UP]  Start auto line up...")
+        for i in range(blocks.detected_num):
+            pick_ret = self.auto_pick(blocks.xyzs[i], blocks.thetas[i])
+            if pick_ret:
+                place_ret = self.auto_place(line_start_xyz)
+                if place_ret:
+                    y_step = 50
+                    line_start_xyz[1] = line_start_xyz[1] + y_step
+                    print("[LINE UP]  One block lined successfully!")
+
+
+    def auto_stack(self, blocks, stack_xyz):
+        # !!! experiment with fix point open loop stack
+        print("[STACK]  Start auto stacking...")
+        for i in range(blocks.detected_num):
+            pick_ret = self.auto_pick(blocks.xyzs[i], blocks.thetas[i])
+            if pick_ret:
+                place_ret = self.auto_place(stack_xyz)
+                if place_ret:
+                    height_step = 38 if blocks.sizes[i] == 1 else 25 # increase stack height by block's size
+                    stack_xyz[2] = stack_xyz[2] + height_step
+                    print("[STACK]  One block stacked successfully!")
+
+    def task_test(self):
+        self.rxarm.sleep()
+        self.detect()
+        self.rxarm.initialize()
+        blocks = self.camera.block_detections
+        self.auto_stack(blocks, [-250, 75, 0])
+
 
     def calibrate(self):
         """!
@@ -447,9 +495,10 @@ class StateMachine():
         
         self.next_state = "idle"
         
-    def get_block_uvd_from_click(self, click_uvd):
+    def get_block_xyz_from_click(self, click_uvd):
+        click_xyz = self.camera.coor_pixel_to_world(click_uvd[0], click_uvd[1], click_uvd[2]).flatten().tolist()
         if self.camera.block_detections.detected_num == 0:
-            return click_uvd, 0.0
+            return click_xyz, 0.0
         blocks_uv = self.camera.block_detections.uvds[:, :2]
         # print(blocks_uv.shape)
         # print(click_uvd[:2].shape)
@@ -459,9 +508,9 @@ class StateMachine():
         print("pixel dist:", dist_min)
         # !! TODO check the threshold here
         if dist_min < 50:
-            return self.camera.block_detections.uvds[np.argmin(dist_norm)], self.camera.block_detections.thetas[np.argmin(dist_norm)]
+            return self.camera.block_detections.xyzs[np.argmin(dist_norm)], self.camera.block_detections.thetas[np.argmin(dist_norm)]
         else:
-            return click_uvd, 0.0
+            return click_xyz, 0.0
 
     def detect(self):
         """!
