@@ -264,7 +264,7 @@ class Camera():
         """
         pass
 
-    def detectBlocksInDepthImage(self, _lower=700, _upper=960):
+    def detectBlocksInDepthImage(self, _lower=700, _upper=960, blind_rect=None):
         """!
         @brief      Detect blocks from depth
 
@@ -280,6 +280,9 @@ class Camera():
         # !!! Attention to these rectangles's range
         cv2.rectangle(mask, (275,120),(1100,720), 255, cv2.FILLED)
         cv2.rectangle(mask, (575,400),(750,720), 0, cv2.FILLED)
+        if blind_rect is not None:
+            cv2.rectangle(mask, blind_rect[0], blind_rect[1], 0, cv2.FILLED)
+
         img_depth_thr = cv2.bitwise_and(cv2.inRange(self.ProcessDepthFrameRaw, lower, upper), mask)
         # depending on your version of OpenCV, the following line could be:
         contours, _ = cv2.findContours(img_depth_thr, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[-2:]
