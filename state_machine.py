@@ -447,7 +447,7 @@ class StateMachine():
                 print("[LINE UP]    Placing {} block...".format(self.camera.color_id[blocks.colors[idx]]))
                 place_ret = self.auto_place(line_start_xyz)
                 if place_ret:
-                    x_step = -50
+                    x_step = -50 if blocks.sizes[idx] == 0 else -35 # increase line up space by block's size
                     line_start_xyz[0] = line_start_xyz[0] + x_step
                     print("[LINE UP]    One block lined successfully!")
         
