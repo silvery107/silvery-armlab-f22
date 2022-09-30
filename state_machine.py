@@ -441,8 +441,10 @@ class StateMachine():
         # !!! line up incremental alone x-axis
         print("[LINE UP]    Start auto lining up...")
         for idx in indices:
+            print("[LINE UP]    Picking {} block...".format(self.camera.color_id[blocks.colors[idx]]))
             pick_ret = self.auto_pick(blocks.xyzs[idx], blocks.thetas[idx])
             if pick_ret:
+                print("[LINE UP]    Placing {} block...".format(self.camera.color_id[blocks.colors[idx]]))
                 place_ret = self.auto_place(line_start_xyz)
                 if place_ret:
                     x_step = -75
@@ -458,10 +460,10 @@ class StateMachine():
         # !!! experiment with fix point open loop stack
         print("[STACK]  Start auto stacking...")
         for idx in indices:
-            print("[STACK]  Picking {}".format(blocks.colors[idx]))
+            print("[STACK]  Picking {} block...".format(self.camera.color_id[blocks.colors[idx]]))
             pick_ret = self.auto_pick(blocks.xyzs[idx], blocks.thetas[idx])
             if pick_ret:
-                print("[STACK]  Placing {}".format(blocks.colors[idx]))
+                print("[STACK]  Placing {} block...".format(self.camera.color_id[blocks.colors[idx]]))
                 place_ret = self.auto_place(stack_xyz)
                 if place_ret:
                     height_step = 38 if blocks.sizes[idx] == 0 else 20 # increase stack height by block's size
@@ -492,23 +494,22 @@ class StateMachine():
             stack_order = []
             destack_order = []
             for i in range(blocks.detected_num):
+                # Find blocks in rainbow color order to stack
                 if blocks.colors[i] == target_color:
                     target_color = target_color + 1
                     stack_order.append(i)
-                    if i == blocks.detected_num - 1:
-                        stack_xyz = self.auto_stack(blocks, stack_xyz, stack_order)
                 else:
-                    stack_xyz = self.auto_stack(blocks, stack_xyz, stack_order)
-                    # print(stack_xyz)
-                    # print(blocks.xyzs[:, 2])
+                    # Destack blocks more than 1 high
                     for idx in range(blocks.detected_num):
                         if blocks.xyzs[idx, 2] > 50 and stack_order.count(idx)<1:
                             destack_order.append(idx)
-
-                    # print(destack_order)
-                    destack_xyz = self.auto_lineup(blocks, destack_xyz, destack_order)
                     break
-            
+
+            # Execute auto stack according to stack_order
+            stack_xyz = self.auto_stack(blocks, stack_xyz, stack_order)
+            # Execute auto lineup according to destack_order
+            destack_xyz = self.auto_lineup(blocks, destack_xyz, destack_order)
+
             self.rxarm.go_to_home_pose(moving_time=2,
                                         accel_time=0.5,
                                         blocking=True)
@@ -519,7 +520,7 @@ class StateMachine():
             blocks = self.camera.block_detections
 
         ############ Simple Test ##############
-        # Choose to stack or lineup
+        # Choose to test auto stack or auto lineup
         # self.auto_stack(blocks, stack_xyz)
         # self.auto_lineup(blocks, destack_xyz)
         self.rxarm.go_to_home_pose(moving_time=2,
@@ -545,7 +546,8 @@ class StateMachine():
         if len(self.camera.tag_detections.detections)<4:
             self.next_state = "idel"
             print("[CALIBRATE]  Calibration failed! Less than 4 tags were detected.")
-            return
+            self.camera.cameraCalibrated = False
+            return False
         for detection in self.camera.tag_detections.detections:
             tagPoints[detection.id[0] - 1, 0] = detection.pose.pose.pose.position.x * 1000
             tagPoints[detection.id[0] - 1, 1] = detection.pose.pose.pose.position.y * 1000
@@ -553,7 +555,6 @@ class StateMachine():
 
         # !!! Change this intrinsic_matrix to the default one in /cmaera/camera_info/K
         apriltag_intrinsic = np.array([908.3550415039062, 0.0, 642.5927124023438, 0.0, 908.4041137695312, 353.12652587890625, 0.0, 0.0, 1.0], dtype=DTYPE).reshape((3,3))
-        # imagePoints = np.matmul(self.camera.intrinsic_matrix, tagPoints.T).T
         imagePoints = np.matmul(apriltag_intrinsic, tagPoints.T).T
         
         imagePoints = imagePoints[:, 0:2] / imagePoints[:, 2].reshape((4, 1))
@@ -572,7 +573,7 @@ class StateMachine():
         # print(self.camera.extrinsic_matrix)
         
         self.next_state = "idle"
-        return self.camera.cameraCalibrated
+        return True
         
     def get_block_xyz_from_click(self, click_uvd):
         click_xyz = self.camera.coord_pixel_to_world(click_uvd[0], click_uvd[1], click_uvd[2]).flatten().tolist()
@@ -600,7 +601,7 @@ class StateMachine():
         # |  2    |    1  |
         # ----------------- frac {2}{3}
         # |  3  |ARM|  4  |
-        # -----------------
+        # ----------------- 5 := 3+4
         self.current_state = "detect"
         self.status_message = "Detecting blocks..."
         img_h, img_w = 720, 1280
@@ -614,6 +615,8 @@ class StateMachine():
             blind_rectangle = [(0, int(img_h*frac)), (int(img_w/2), img_h)]
         elif ignore==4:
             blind_rectangle = [(int(img_w/2), int(img_h*frac)), (img_w, img_h)]
+        elif ignore==5: # negative half plane
+            blind_rectangle = [(0, int(img_h*frac)), (img_w, img_h)]
 
         self.camera.detectBlocksInDepthImage(blind_rect=blind_rectangle)
         rospy.sleep(0.1)
