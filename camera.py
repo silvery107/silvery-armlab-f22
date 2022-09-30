@@ -283,10 +283,11 @@ class Camera():
         if blind_rect is not None:
             cv2.rectangle(mask, blind_rect[0], blind_rect[1], 0, cv2.FILLED)
 
-        img_depth_thr = cv2.bitwise_and(cv2.inRange(self.ProcessDepthFrameRaw, lower, upper), mask)
-        # depending on your version of OpenCV, the following line could be:
+        depth_seg = cv2.inRange(self.ProcessDepthFrameRaw, lower, upper)
+        img_depth_thr = cv2.bitwise_and(depth_seg, mask)
+        
         contours, _ = cv2.findContours(img_depth_thr, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[-2:]
-        # _, contours, _ = cv2.findContours(img_depth_thr, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        
         self.block_detections.all_contours = contours
 
         cv2.drawContours(self.ProcessVideoFrame, contours, -1, (255, 0, 0), 1)

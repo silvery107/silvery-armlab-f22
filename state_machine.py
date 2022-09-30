@@ -449,7 +449,6 @@ class StateMachine():
                 if place_ret:
                     x_step = -50 if blocks.sizes[idx] == 0 else -35 # increase line up space by block's size
                     line_start_xyz[0] = line_start_xyz[0] + x_step
-                    print("[LINE UP]    One block lined successfully!")
         
         print("[LINE UP]    Lining up finished")
         return line_start_xyz
@@ -468,7 +467,6 @@ class StateMachine():
                 if place_ret:
                     height_step = 38 if blocks.sizes[idx] == 0 else 20 # increase stack height by block's size
                     stack_xyz[2] = stack_xyz[2] + height_step
-                    print("[STACK]  One block stacked successfully!")
 
         print("[STACK]  Stacking finished")
         return stack_xyz
