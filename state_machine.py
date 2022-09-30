@@ -404,7 +404,7 @@ class StateMachine():
         current_effort = self.rxarm.get_efforts()
         print("initial: ", current_effort)
         temp_joint = np.array(joint_angles_1)
-        for i in range(6):
+        for i in range(10):
             displacement_unit = displacement_unit / 2
             temp_joint = temp_joint + displacement_unit
             move_time, ac_time = self.calMoveTime(temp_joint)
