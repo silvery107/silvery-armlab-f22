@@ -222,6 +222,7 @@ class StateMachine():
         target_world_pos = deepcopy(_target_world_pos)
         ############ Planning #############
         print("[PICK] Planning waypoints...")
+        pick_stable = True
         pick_height_offset = 10
         pick_wrist_offset = np.pi/18.0/2.0
         joint_angles_home = [0, 0, 0, 0, 0]
@@ -233,23 +234,23 @@ class StateMachine():
 
         # Try vertical reach with phi = pi/2
         reachable_low, joint_angles_2 = IK_geometric([target_world_pos[0], 
-                                    target_world_pos[1], 
-                                    target_world_pos[2], 
-                                    np.pi/2],
-                                    block_ori=block_ori,
-                                    m_matrix=self.rxarm.M_matrix,
-                                    s_list=self.rxarm.S_list)
+                                                    target_world_pos[1],
+                                                    target_world_pos[2],
+                                                    np.pi/2],
+                                                    block_ori=block_ori,
+                                                    m_matrix=self.rxarm.M_matrix,
+                                                    s_list=self.rxarm.S_list)
 
         if reachable_low:
             phi = np.pi/2
             while not reachable_high:
                 reachable_high, joint_angles_1 = IK_geometric([above_world_pos[0], 
-                                            above_world_pos[1], 
-                                            above_world_pos[2], 
-                                            phi],
-                                            block_ori=block_ori,
-                                            m_matrix=self.rxarm.M_matrix,
-                                            s_list=self.rxarm.S_list)
+                                                            above_world_pos[1],
+                                                            above_world_pos[2],
+                                                            phi],
+                                                            block_ori=block_ori,
+                                                            m_matrix=self.rxarm.M_matrix,
+                                                            s_list=self.rxarm.S_list)
                 phi = phi - np.pi/18.0
                 if phi < 0:
                     break
@@ -258,6 +259,7 @@ class StateMachine():
         if self.check_path_clean(target_world_pos):
             # Try horizontal reach with phi = 0.0
             if not reachable_high or not reachable_low:
+                pick_stable = False
                 reachable_low, joint_angles_2 = IK_geometric([target_world_pos[0], 
                                                             target_world_pos[1], 
                                                             target_world_pos[2], 
@@ -276,7 +278,7 @@ class StateMachine():
             if not self.next_state == "estop":
                 self.next_state = "idle"
             print("[PICK] Target point is unreachable, remain idle!!!")
-            return False
+            return False, pick_stable
         
         ############ Executing #############
         print("[PICK] Executing waypoints...")
@@ -324,10 +326,10 @@ class StateMachine():
         # TODO return pick fail according to gripper distance
         if gripper_distance < 0.020:
             print("[PICK]   Failed to grab the block!")
-            return False
+            return False, pick_stable
         else:
             print("[PICK]   PICK finished!")
-            return True
+            return True, pick_stable
 
     def place(self):
         self.status_message = "State: Place - Click to place"
@@ -351,13 +353,13 @@ class StateMachine():
         if not self.next_state == "estop":
             self.next_state = "idle"
 
-    def auto_place(self, _target_world_pos, _block_ori=None):
+    def auto_place(self, _target_world_pos, block_ori=None, phi=np.pi/2):
         target_world_pos = deepcopy(_target_world_pos)
         # print(target_world_pos)
-        if _block_ori is not None:
-            block_ori = _block_ori
-        else:
-            block_ori = 0.0
+        # if _block_ori is not None:
+        #     block_ori = _block_ori
+        # else:
+        #     block_ori = 0.0
         ############ Planning #############
         print("[PLACE]  Planning waypoints...")
         place_height_offset = 33
@@ -370,23 +372,23 @@ class StateMachine():
 
         # Try vertical reach with phi = pi/2
         reachable_low, joint_angles_2 = IK_geometric([target_world_pos[0], 
-                                    target_world_pos[1], 
-                                    target_world_pos[2], 
-                                    np.pi/2],
-                                    block_ori=block_ori,
-                                    m_matrix=self.rxarm.M_matrix,
-                                    s_list=self.rxarm.S_list)
+                                                    target_world_pos[1],
+                                                    target_world_pos[2],
+                                                    phi],
+                                                    block_ori=block_ori,
+                                                    m_matrix=self.rxarm.M_matrix,
+                                                    s_list=self.rxarm.S_list)
 
         if reachable_low:
-            phi = np.pi/2
+            # phi = np.pi/2
             while not reachable_high:
                 reachable_high, joint_angles_1 = IK_geometric([above_world_pos[0], 
-                                            above_world_pos[1], 
-                                            above_world_pos[2], 
-                                            phi],
-                                            block_ori=block_ori,
-                                            m_matrix=self.rxarm.M_matrix,
-                                            s_list=self.rxarm.S_list)
+                                                            above_world_pos[1],
+                                                            above_world_pos[2],
+                                                            phi],
+                                                            block_ori=block_ori,
+                                                            m_matrix=self.rxarm.M_matrix,
+                                                            s_list=self.rxarm.S_list)
                 phi = phi - np.pi / 18.0
                 if phi < 0:
                     break
@@ -394,18 +396,18 @@ class StateMachine():
         # Try horizontal reach with phi = 0.0
         if not reachable_high or not reachable_low:
             reachable_low, joint_angles_2 = IK_geometric([target_world_pos[0], 
-                                    target_world_pos[1], 
-                                    target_world_pos[2], 
-                                    0.0],
-                                    m_matrix=self.rxarm.M_matrix,
-                                    s_list=self.rxarm.S_list)
+                                                        target_world_pos[1],
+                                                        target_world_pos[2],
+                                                        0.0],
+                                                        m_matrix=self.rxarm.M_matrix,
+                                                        s_list=self.rxarm.S_list)
 
             reachable_high, joint_angles_1 = IK_geometric([above_world_pos[0], 
-                                        above_world_pos[1], 
-                                        above_world_pos[2], 
-                                        0.0],
-                                        m_matrix=self.rxarm.M_matrix,
-                                        s_list=self.rxarm.S_list)
+                                                        above_world_pos[1],
+                                                        above_world_pos[2],
+                                                        0.0],
+                                                        m_matrix=self.rxarm.M_matrix,
+                                                        s_list=self.rxarm.S_list)
 
         # Unreachable
         if not reachable_high or not reachable_low:
@@ -465,14 +467,14 @@ class StateMachine():
     def auto_lineup(self, blocks, line_start_xyz, indices=None):
         if indices is None:
             indices = range(blocks.detected_num)
-        # !!! line up incremental alone x-axis
+        
         print("[LINE UP]    Start auto lining up...")
         for idx in indices:
             print("[LINE UP]    Picking {} block...".format(self.camera.color_id[blocks.colors[idx]]))
-            pick_ret = self.auto_pick(blocks.xyzs[idx], blocks.thetas[idx])
+            pick_ret, stable = self.auto_pick(blocks.xyzs[idx], blocks.thetas[idx])
             if pick_ret:
                 print("[LINE UP]    Placing {} block...".format(self.camera.color_id[blocks.colors[idx]]))
-                place_ret = self.auto_place(line_start_xyz)
+                place_ret = self.auto_place(line_start_xyz, block_ori=0)
                 if place_ret:
                     x_step = -50 if blocks.sizes[idx] == 0 else -37 # increase line up space by block's size
                     line_start_xyz[0] = line_start_xyz[0] + x_step
@@ -483,14 +485,18 @@ class StateMachine():
     def auto_stack(self, blocks, stack_xyz, indices=None):
         if indices is None:
             indices = range(blocks.detected_num)
-        # !!! experiment with fix point open loop stack
+        
         print("[STACK]  Start auto stacking...")
         for idx in indices:
             print("[STACK]  Picking {} block...".format(self.camera.color_id[blocks.colors[idx]]))
-            pick_ret = self.auto_pick(blocks.xyzs[idx], blocks.thetas[idx])
+            pick_ret, stable = self.auto_pick(blocks.xyzs[idx], blocks.thetas[idx])
             if pick_ret:
                 print("[STACK]  Placing {} block...".format(self.camera.color_id[blocks.colors[idx]]))
-                place_ret = self.auto_place(stack_xyz)
+                if not stable:
+                    # If picked by horizontal reach, than place it horizontally
+                    place_ret = self.auto_place(stack_xyz, phi=0.0)
+                else:
+                    place_ret = self.auto_place(stack_xyz)
                 if place_ret:
                     height_step = 38 if blocks.sizes[idx] == 0 else 25 # increase stack height by block's size
                     stack_xyz[2] = stack_xyz[2] + height_step
