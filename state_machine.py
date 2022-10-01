@@ -231,6 +231,7 @@ class StateMachine():
 
         reachable_low, reachable_high = False, False
 
+        # Try vertical reach with phi = pi/2
         reachable_low, joint_angles_2 = IK_geometric([target_world_pos[0], 
                                     target_world_pos[1], 
                                     target_world_pos[2], 
@@ -252,6 +253,24 @@ class StateMachine():
                 phi = phi - np.pi/18.0
                 if phi < 0:
                     break
+
+        # add horizontal reach by detecting distance between the projection of arm and the target point
+        if self.check_path_clean(target_world_pos):
+            # Try horizontal reach with phi = 0.0
+            if not reachable_high or not reachable_low:
+                reachable_low, joint_angles_2 = IK_geometric([target_world_pos[0], 
+                                                            target_world_pos[1], 
+                                                            target_world_pos[2], 
+                                                            0.0],
+                                                            m_matrix=self.rxarm.M_matrix,
+                                                            s_list=self.rxarm.S_list)
+
+                reachable_high, joint_angles_1 = IK_geometric([above_world_pos[0], 
+                                                            above_world_pos[1], 
+                                                            above_world_pos[2], 
+                                                            0.0],
+                                                            m_matrix=self.rxarm.M_matrix,
+                                                            s_list=self.rxarm.S_list)
 
         if not reachable_high or not reachable_low:
             if not self.next_state == "estop":
@@ -299,8 +318,16 @@ class StateMachine():
                                         accel_time=ac_time,
                                         blocking=True)
 
-        print("[PICK] PICK finished!")
-        return True
+        # linear distance between the gripper fingers [m]
+        gripper_distance = self.rxarm.get_gripper_position()
+        print("[PICK]   Gripper Dist: {:.3f}".format(gripper_distance))
+        # TODO return pick fail according to gripper distance
+        if gripper_distance < 0.020:
+            print("[PICK]   Failed to grab the block!")
+            return False
+        else:
+            print("[PICK]   PICK finished!")
+            return True
 
     def place(self):
         self.status_message = "State: Place - Click to place"
@@ -333,7 +360,7 @@ class StateMachine():
             block_ori = 0.0
         ############ Planning #############
         print("[PLACE]  Planning waypoints...")
-        place_height_offset = 30
+        place_height_offset = 33
         place_wrist_offset = np.pi/18.0/2.0
         target_world_pos[2] = target_world_pos[2] + place_height_offset
         above_world_pos = deepcopy(target_world_pos)
@@ -447,7 +474,7 @@ class StateMachine():
                 print("[LINE UP]    Placing {} block...".format(self.camera.color_id[blocks.colors[idx]]))
                 place_ret = self.auto_place(line_start_xyz)
                 if place_ret:
-                    x_step = -50 if blocks.sizes[idx] == 0 else -35 # increase line up space by block's size
+                    x_step = -50 if blocks.sizes[idx] == 0 else -37 # increase line up space by block's size
                     line_start_xyz[0] = line_start_xyz[0] + x_step
         
         print("[LINE UP]    Lining up finished")
@@ -465,7 +492,7 @@ class StateMachine():
                 print("[STACK]  Placing {} block...".format(self.camera.color_id[blocks.colors[idx]]))
                 place_ret = self.auto_place(stack_xyz)
                 if place_ret:
-                    height_step = 38 if blocks.sizes[idx] == 0 else 20 # increase stack height by block's size
+                    height_step = 38 if blocks.sizes[idx] == 0 else 25 # increase stack height by block's size
                     stack_xyz[2] = stack_xyz[2] + height_step
 
         print("[STACK]  Stacking finished")
@@ -502,19 +529,24 @@ class StateMachine():
                         if blocks.xyzs[idx, 2] > 50 and stack_order.count(idx)<1:
                             destack_order.append(idx)
                     break
+            
+            if stack_order or destack_order:
+                # Execute auto stack according to stack_order
+                stack_xyz = self.auto_stack(blocks, stack_xyz, stack_order)
+                # Execute auto lineup according to destack_order
+                destack_xyz = self.auto_lineup(blocks, destack_xyz, destack_order)
+                
+                self.rxarm.go_to_home_pose(moving_time=2,
+                                            accel_time=0.5,
+                                            blocking=True)
+                self.rxarm.go_to_sleep_pose(moving_time=2,
+                                            accel_time=0.5,
+                                            blocking=True)
+            else:
+                # No execution but look for next rainbow color
+                target_color  = target_color + 1
 
-            # Execute auto stack according to stack_order
-            stack_xyz = self.auto_stack(blocks, stack_xyz, stack_order)
-            # Execute auto lineup according to destack_order
-            destack_xyz = self.auto_lineup(blocks, destack_xyz, destack_order)
-
-            self.rxarm.go_to_home_pose(moving_time=2,
-                                        accel_time=0.5,
-                                        blocking=True)
-            self.rxarm.go_to_sleep_pose(moving_time=2,
-                                        accel_time=0.5,
-                                        blocking=True)
-            self.detect(ignore=3)
+            self.detect(ignore=3) # ignore the left negtive half plane
             blocks = self.camera.block_detections
 
         ############ Simple Test ##############
@@ -589,6 +621,19 @@ class StateMachine():
             return self.camera.block_detections.xyzs[np.argmin(dist_norm)], self.camera.block_detections.thetas[np.argmin(dist_norm)]
         else:
             return click_xyz, 0.0
+    
+    def line_dist(self, line_xy, target_xy):
+        dist = (-line_xy[1]*target_xy[0] + line_xy[0]*target_xy[1])/np.linalg.norm(line_xy)
+        return dist
+    
+    def check_path_clean(self, target_xyz):
+        blocks = self.camera.block_detections
+        for i in range(blocks.detected_num):
+            dist = self.line_dist(blocks.xyzs[i, :2], target_xyz[:2])
+            if dist < 50:
+                return False
+
+        return True
 
     def detect(self, ignore=None):
         """!
