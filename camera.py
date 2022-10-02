@@ -2,6 +2,7 @@
 Class to represent the camera.
 """
 
+from random import random
 import cv2
 import time
 import numpy as np
@@ -13,10 +14,11 @@ from std_msgs.msg import String
 from sensor_msgs.msg import Image
 from sensor_msgs.msg import CameraInfo
 from apriltag_ros.msg import *
-from cv_bridge import CvBridge, CvBridgeError
+# from cv_bridge import CvBridge, CvBridgeError
 import yaml
 # TODO
 # import torch
+# from models.model import BlocksDataset
 
 from utils import DTYPE
 from scipy import stats
@@ -78,7 +80,7 @@ class BlockDetections():
         l_rainbow_order = np.argsort(self.colors[small_num:])
         self._sort_by_idx(l_rainbow_order, small_num, self.detected_num)
         self.small_num = small_num
-        print(self.colors)
+        print("[BLOCKS] Find blocks with color {}".format(self.colors))
 
 
 class Camera():
@@ -128,7 +130,9 @@ class Camera():
 
         # ML model 
         # TODO
-        # self.model = torch.load("models/model_fcn_re101.pth")
+        # self.device = "cuda"
+        # self.model = torch.load("models/model_fcn_re101_cpu.pth")
+        # self.model.to(self.device)
         # self.model.eval()
 
         self.loadCameraCalibration("config/camera_calib.yaml")
@@ -320,14 +324,19 @@ class Camera():
             elif abs(M["m00"]) > 2000:
                 # TODO add seg model
                 # rgb_single = cv2.bitwise_and(self.ProcessVideoFrame, self.ProcessVideoFrame, mask=mask_single)
-                # input_img = cv2.resize(rgb_single, (244, 244), cv2.INTER_AREA)
-                # output = torch.argmax(self.model(input_img), 1).squeeze(0).numpy() * 255/6
+                # input_img = BlocksDataset.transform(torch.from_numpy(rgb_single).to(torch.float).permute(2, 0, 1)).unsqueeze(0)
+                # # input_img (1, 3, 244, 244)
+                # output_pred = self.model(input_img.to(self.device))
+                # # output_pred (1, 7, 244, 244)
+                # output = torch.argmax(output_pred, 1).squeeze(0).cpu().numpy()
+                # # output (244, 244) int64
                 # bins = np.bincount(output.flatten())
                 # if np.count_nonzero(bins[1:])>1:
-                #     output_img = cv2.resize(output, (720,1280))
+                #     output_img = output.astype(np.float32) * 255/6
+                #     output_mask = cv2.resize(output_img , (1280,720))
                 #     print("Your model really find something??!!")
                 #     print("model colors:{}".format(bins[1:]))
-                #     cv2.imshow("model output", output_img)
+                #     cv2.imwrite("data/treasures_%3d.png" % (random()*100), output_mask)
                 pass
             cx = int(M['m10']/M['m00'])
             cy = int(M['m01']/M['m00'])
@@ -369,15 +378,16 @@ class Camera():
 class TagImageListener:
     def __init__(self, topic, camera):
         self.topic = topic
-        self.bridge = CvBridge()
+        # self.bridge = CvBridge()
         self.image_sub = rospy.Subscriber(topic, Image, self.callback)
         self.camera = camera
 
-    def callback(self, data):
+    def callback(self, image_data):
         try:
-            cv_image = self.bridge.imgmsg_to_cv2(data, data.encoding)
+            # cv_image = self.bridge.imgmsg_to_cv2(image_data, image_data.encoding)
+            cv_image = np.frombuffer(image_data.data, dtype=np.uint8).reshape(image_data.height, image_data.width, -1)
             #cv_image = cv2.rotate(cv_image, cv2.ROTATE_180)
-        except CvBridgeError as e:
+        except Exception as e:
             print(e)
         self.camera.TagImageFrame = cv_image
 
@@ -411,32 +421,34 @@ class CameraInfoListener:
 class ImageListener:
     def __init__(self, topic, camera):
         self.topic = topic
-        self.bridge = CvBridge()
+        # self.bridge = CvBridge()
         self.image_sub = rospy.Subscriber(topic, Image, self.callback)
         self.camera = camera
 
-    def callback(self, data):
+    def callback(self, image_data):
         try:
-            cv_image = self.bridge.imgmsg_to_cv2(data, data.encoding)
+            # cv_image = self.bridge.imgmsg_to_cv2(image_data, image_data.encoding)
+            cv_image = np.frombuffer(image_data.data, dtype=np.uint8).reshape(image_data.height, image_data.width, -1)
             #cv_image = cv2.rotate(cv_image, cv2.ROTATE_180)
-        except CvBridgeError as e:
+        except Exception as e:
             print(e)
-        self.camera.VideoFrame = cv_image # TODO try .copy() here
+        self.camera.VideoFrame = cv_image
         self.camera.colorReceived = True
 
 
 class DepthListener:
     def __init__(self, topic, camera):
         self.topic = topic
-        self.bridge = CvBridge()
+        # self.bridge = CvBridge()
         self.image_sub = rospy.Subscriber(topic, Image, self.callback)
         self.camera = camera
 
-    def callback(self, data):
+    def callback(self, image_data):
         try:
-            cv_depth = self.bridge.imgmsg_to_cv2(data, data.encoding)
+            # cv_depth = self.bridge.imgmsg_to_cv2(image_data, image_data.encoding)
+            cv_depth = np.frombuffer(image_data.data[:-1], dtype=np.uint16).reshape(image_data.height, image_data.width)
             #cv_depth = cv2.rotate(cv_depth, cv2.ROTATE_180)
-        except CvBridgeError as e:
+        except Exception as e:
             print(e)
         self.camera.DepthFrameRaw = cv_depth
         #self.camera.DepthFrameRaw = self.camera.DepthFrameRaw/2
