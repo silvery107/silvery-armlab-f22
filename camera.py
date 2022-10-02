@@ -15,6 +15,8 @@ from sensor_msgs.msg import CameraInfo
 from apriltag_ros.msg import *
 from cv_bridge import CvBridge, CvBridgeError
 import yaml
+# TODO
+# import torch
 
 from utils import DTYPE
 from scipy import stats
@@ -123,6 +125,11 @@ class Camera():
                                         dtype=np.uint8)
         self.color_lab_mean = cv2.cvtColor(self.color_rgb_mean[:,None,:], cv2.COLOR_RGB2LAB).squeeze()
         self.size_id = ["large", "small"]
+
+        # ML model 
+        # TODO
+        # self.model = torch.load("models/model_fcn_re101.pth")
+        # self.model.eval()
 
         self.loadCameraCalibration("config/camera_calib.yaml")
 
@@ -285,7 +292,7 @@ class Camera():
 
         depth_seg = cv2.inRange(self.ProcessDepthFrameRaw, lower, upper)
         img_depth_thr = cv2.bitwise_and(depth_seg, mask)
-        
+
         contours, _ = cv2.findContours(img_depth_thr, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[-2:]
         
         self.block_detections.all_contours = contours
@@ -310,6 +317,18 @@ class Camera():
             if abs(M["m00"]) < 200:
                 # reject false positive detections by area size
                 continue
+            elif abs(M["m00"]) > 2000:
+                # TODO add seg model
+                # rgb_single = cv2.bitwise_and(self.ProcessVideoFrame, self.ProcessVideoFrame, mask=mask_single)
+                # input_img = cv2.resize(rgb_single, (244, 244), cv2.INTER_AREA)
+                # output = torch.argmax(self.model(input_img), 1).squeeze(0).numpy() * 255/6
+                # bins = np.bincount(output.flatten())
+                # if np.count_nonzero(bins[1:])>1:
+                #     output_img = cv2.resize(output, (720,1280))
+                #     print("Your model really find something??!!")
+                #     print("model colors:{}".format(bins[1:]))
+                #     cv2.imshow("model output", output_img)
+                pass
             cx = int(M['m10']/M['m00'])
             cy = int(M['m01']/M['m00'])
             cz = self.ProcessDepthFrameRaw[cy, cx]
