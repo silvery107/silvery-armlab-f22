@@ -322,13 +322,13 @@ class StateMachine():
 
         # linear distance between the gripper fingers [m]
         gripper_distance = self.rxarm.get_gripper_position()
-        print("[PICK]   Gripper Dist: {:.3f}".format(gripper_distance))
+        print("[PICK] Gripper Dist: {:.3f}".format(gripper_distance))
         # TODO return pick fail according to gripper distance
         if gripper_distance < 0.020:
-            print("[PICK]   Failed to grab the block!")
+            print("[PICK] Failed to grab the block!")
             return False, pick_stable
         else:
-            print("[PICK]   PICK finished!")
+            print("[PICK] PICK finished!")
             return True, pick_stable
 
     def place(self):
@@ -433,7 +433,7 @@ class StateMachine():
         current_effort = self.rxarm.get_efforts()
         print("initial: ", current_effort)
         temp_joint = np.array(joint_angles_1)
-        for i in range(10):
+        for i in range(6):
             displacement_unit = displacement_unit / 2
             temp_joint = temp_joint + displacement_unit
             move_time, ac_time = self.calMoveTime(temp_joint)
