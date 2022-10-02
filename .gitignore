@@ -6,6 +6,7 @@ docs/
 gazebo_shim_deps/
 URDFs/*.sdf
 URDFs/*.urdf
+*.pth
 
 *.ipynb
 
