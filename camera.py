@@ -130,7 +130,7 @@ class Camera():
 
         # ML model 
         # TODO
-        # self.device = "cuda"
+        # self.device = "cpu"
         # self.model = torch.load("models/model_fcn_re101_cpu.pth")
         # self.model.to(self.device)
         # self.model.eval()
@@ -323,7 +323,11 @@ class Camera():
                 continue
             elif abs(M["m00"]) > 2000:
                 # TODO add seg model
-                # rgb_single = cv2.bitwise_and(self.ProcessVideoFrame, self.ProcessVideoFrame, mask=mask_single)
+                # # generate new mask for new valid contours
+                # mask_new_single = np.zeros_like(mask_single, dtype=np.uint8)
+                # cv2.drawContours(mask_new_single, [contours_new_valid], -1, 255, cv2.FILLED)
+                # # segmente rgb image using new mask
+                # rgb_single = cv2.bitwise_and(self.ProcessVideoFrame, self.ProcessVideoFrame, mask=mask_new_single)
                 # input_img = BlocksDataset.transform(torch.from_numpy(rgb_single).to(torch.float).permute(2, 0, 1)).unsqueeze(0)
                 # # input_img (1, 3, 244, 244)
                 # output_pred = self.model(input_img.to(self.device))
@@ -336,7 +340,7 @@ class Camera():
                 #     output_mask = cv2.resize(output_img , (1280,720))
                 #     print("Your model really find something??!!")
                 #     print("model colors:{}".format(bins[1:]))
-                #     cv2.imwrite("data/treasures_%3d.png" % (random()*100), output_mask)
+                #     cv2.imwrite("data/treasures_%d.png" % (random()*1000), output_mask)
                 pass
             cx = int(M['m10']/M['m00'])
             cy = int(M['m01']/M['m00'])
