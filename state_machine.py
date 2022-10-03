@@ -621,7 +621,7 @@ class StateMachine():
         dist = blocks_uv - click_uvd[:2]
         dist_norm = np.linalg.norm(dist, axis=1)
         dist_min = np.min(dist_norm)
-        print("pixel dist:", dist_min)
+        # print("pixel dist:", dist_min)
         # !! TODO check the threshold here
         if dist_min < 50:
             return self.camera.block_detections.xyzs[np.argmin(dist_norm)], self.camera.block_detections.thetas[np.argmin(dist_norm)]
@@ -630,12 +630,13 @@ class StateMachine():
     
     def line_dist(self, line_xy, target_xy):
         dist = (-line_xy[1]*target_xy[0] + line_xy[0]*target_xy[1])/np.linalg.norm(line_xy)
-        return dist
+        return abs(dist)
     
     def check_path_clean(self, target_xyz):
         blocks = self.camera.block_detections
         for i in range(blocks.detected_num):
             dist = self.line_dist(blocks.xyzs[i, :2], target_xyz[:2])
+            # print("path point dist {0}".format(dist))
             if dist < 50:
                 return False
 
