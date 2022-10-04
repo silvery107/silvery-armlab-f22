@@ -1,7 +1,7 @@
 """!
 The state machine that implements the logic.
 """
-from copy import deepcopy
+from copy import copy, deepcopy
 from PyQt4.QtCore import (QThread, Qt, pyqtSignal, pyqtSlot, QTimer)
 import time
 import numpy as np
@@ -101,6 +101,12 @@ class StateMachine():
         if self.next_state == "task_test":
             self.task_test()
 
+        if self.next_state == "task1":
+            self.task1()
+
+        if self.next_state == "task2":
+            self.task2()
+
 
     """Functions run for each state"""
 
@@ -194,8 +200,14 @@ class StateMachine():
     
     def calMoveTime(self, target_joint):
         displacement = target_joint - self.rxarm.get_positions()
-        angular_t = np.abs(displacement) / (np.pi / 5)
+        angular_v = np.ones(displacement.shape) * (np.pi / 5)
+        angular_v[0] = np.pi / 3
+        angular_v[3] = np.pi / 3
+        angular_v[4] = np.pi / 3
+        angular_t = np.abs(displacement) / angular_v
         move_time = np.max(angular_t)
+        if move_time < 0.4:
+            move_time = 0.4
         ac_time = move_time / 4.0
         return move_time, ac_time
 
@@ -283,18 +295,21 @@ class StateMachine():
         ############ Executing #############
         print("[PICK] Executing waypoints...")
         # 1. go to the home pose
-        move_time, ac_time = self.calMoveTime(joint_angles_home)
-        self.rxarm.go_to_home_pose(moving_time=move_time,
-                                    accel_time=ac_time,
-                                    blocking=True)
-        if not self.rxarm.gripper_state:
-            self.rxarm.open_gripper()
-            self.rxarm.gripper_state = True
+        # move_time, ac_time = self.calMoveTime(joint_angles_home)
+        # self.rxarm.go_to_home_pose(moving_time=move_time,
+        #                             accel_time=ac_time,
+        #                             blocking=True)
+        # if not self.rxarm.gripper_state:
+        #     self.rxarm.open_gripper()
+        #     self.rxarm.gripper_state = True
 
         # 2. go to the point above target pose with waist angle move first
-        move_time = np.abs(joint_angles_1[0]) / (np.pi / 5)
-        ac_time = move_time / 4.0
-            
+        # move_time = np.abs(joint_angles_1[0]) / (np.pi / 5)
+        # ac_time = move_time / 4.0
+        joint_angles_start = [0, 0, 0, 0, 0]
+        joint_angles_start[0] = joint_angles_1[0]
+
+        move_time, ac_time = self.calMoveTime(joint_angles_start)
         self.rxarm.set_single_joint_position("waist", joint_angles_1[0], moving_time=move_time, accel_time=ac_time, blocking=True)
 
         move_time, ac_time = self.calMoveTime(joint_angles_1)
@@ -320,11 +335,23 @@ class StateMachine():
                                         accel_time=ac_time,
                                         blocking=True)
 
+        # 5. raise to the theta1 = 0 and theta2 = 0
+        joint_angles_end = copy(joint_angles_1)
+        joint_angles_end[1] = -np.pi/4
+        joint_angles_end[2] = 0
+        joint_angles_end[3] = -np.pi/2
+        joint_angles_end[4] = 0
+        move_time, ac_time = self.calMoveTime(joint_angles_end)
+        self.rxarm.set_joint_positions(joint_angles_end,
+                                        moving_time=move_time,
+                                        accel_time=ac_time,
+                                        blocking=True)
+
         # linear distance between the gripper fingers [m]
         gripper_distance = self.rxarm.get_gripper_position()
-        print("[PICK] Gripper Dist: {:.3f}".format(gripper_distance))
+        print("[PICK] Gripper Dist: {:.4f}".format(gripper_distance))
         # TODO return pick fail according to gripper distance
-        if gripper_distance < 0.020:
+        if gripper_distance == 0.03:
             print("[PICK] Failed to grab the block!")
             return False, pick_stable
         else:
@@ -418,6 +445,14 @@ class StateMachine():
 
         ############ Executing #############
         print("[PLACE]  Executing waypoints...")
+
+        joint_angles_start = self.rxarm.get_positions()
+
+        move_time = np.abs(joint_angles_1[0] - joint_angles_start[0]) / (np.pi/3)
+        ac_time = move_time / 4
+        print("move time: ", move_time)
+        self.rxarm.set_single_joint_position("waist", joint_angles_1[0], moving_time=move_time, accel_time=ac_time, blocking=True)
+
         # 1. go to point above target pose
         move_time, ac_time = self.calMoveTime(joint_angles_1)
         self.rxarm.set_joint_positions(joint_angles_1,
@@ -448,7 +483,8 @@ class StateMachine():
             #     break
             effort_diff = (effort - current_effort)[1:3]
             print("effort norm:", np.linalg.norm(effort_diff))
-            if np.linalg.norm(effort_diff) > 300:
+            rospy.sleep(0.1)
+            if np.linalg.norm(effort_diff) > 350 and effort[1] > current_effort[1]:
                 break
 
         self.rxarm.open_gripper()
@@ -460,6 +496,19 @@ class StateMachine():
                                         accel_time=ac_time,
                                         blocking=True)
 
+        # joint_angles_end = [0, np.pi/4, 0, -np.pi/2, 0]
+        # joint_angles_end[0] = joint_angles_1[0]
+        joint_angles_end = copy(joint_angles_1)
+        joint_angles_end[1] = 0
+        joint_angles_end[2] = 0
+        joint_angles_end[3] = -np.pi/2
+        joint_angles_end[4] = 0
+
+        move_time, ac_time = self.calMoveTime(joint_angles_end)
+        self.rxarm.set_joint_positions(joint_angles_end,
+                                        moving_time=move_time,
+                                        accel_time=ac_time,
+                                        blocking=True)
 
         print("[PLACE]  PLACE finished!")
         return True
@@ -569,6 +618,160 @@ class StateMachine():
         if not self.next_state == "estop":
             self.next_state = "idle"
 
+    def task1(self):
+        self.current_state = "task1"
+        self.status_message = "Start task1!"
+
+        self.rxarm.go_to_sleep_pose(moving_time=2,
+                                    accel_time=0.5,
+                                    blocking=True)
+        if not self.calibrate():
+            self.next_state = "idle"
+            return
+        self.detect(ignore=5, sort_key="distance")
+        blocks = self.camera.block_detections
+
+        self.rxarm.go_to_home_pose(moving_time=2,
+                                    accel_time=0.5,
+                                    blocking=True)
+        large_xyz = [400, -100, -5]
+        small_xyz = [-400, -100, -5]
+        while blocks.detected_num > 0:
+            block_xyz = blocks.xyzs[0]
+            sz = blocks.sizes[0]
+            ori = blocks.thetas[0]
+            pick_sucess, _ = self.auto_pick(block_xyz, ori)
+            if not pick_sucess:
+                self.rxarm.go_to_home_pose(moving_time=2,
+                                    accel_time=0.5,
+                                    blocking=True)
+                self.rxarm.go_to_sleep_pose(moving_time=2,
+                                            accel_time=0.5,
+                                            blocking=True)
+            else:
+                if sz == 0:
+                    print("Place large block to ", large_xyz)
+                    self.auto_place(large_xyz)
+                    large_xyz[0] = large_xyz[0] - 50
+                    if large_xyz[0] < 150:
+                        large_xyz[0] = 350
+                        large_xyz[1] = -50
+                else:
+                    print("Place small block to ", small_xyz)
+                    self.auto_place(small_xyz)
+                    small_xyz[0] = small_xyz[0] + 50
+                    if small_xyz[0] > -150:
+                        small_xyz[0] = -350
+                        small_xyz[1] = -50
+
+            self.detect(ignore=5, sort_key="distance")
+        
+        self.rxarm.go_to_home_pose(moving_time=2,
+                                    accel_time=0.5,
+                                    blocking=True)
+        self.rxarm.go_to_sleep_pose(moving_time=2,
+                                    accel_time=0.5,
+                                    blocking=True)
+
+        if not self.next_state == "estop":
+            self.next_state = "idle"
+
+
+    def task2(self):
+        self.current_state = "task2"
+        self.status_message = "Start task2!"
+
+        self.rxarm.go_to_sleep_pose(moving_time=2,
+                                    accel_time=0.5,
+                                    blocking=True)
+        if not self.calibrate():
+            self.next_state = "idle"
+            return
+        self.detect(ignore=5, sort_key="distance")
+        blocks = self.camera.block_detections
+
+        self.rxarm.go_to_home_pose(moving_time=2,
+                                    accel_time=0.5,
+                                    blocking=True)
+        stack_xyz = [-350, -100, -10]
+        small_xyz = [350, -100, -10]
+        stack_num = 0
+        while blocks.detected_num > 0:
+            block_xyz = blocks.xyzs[0]
+            sz = blocks.sizes[0]
+            ori = blocks.thetas[0]
+            pick_sucess, _ = self.auto_pick(block_xyz, ori)
+            if not pick_sucess:
+                self.rxarm.go_to_home_pose(moving_time=2,
+                                    accel_time=0.5,
+                                    blocking=True)
+                self.rxarm.go_to_sleep_pose(moving_time=2,
+                                            accel_time=0.5,
+                                            blocking=True)
+            else:
+                if sz == 0:
+                    print("Place large block to ", stack_xyz)
+                    self.auto_place(stack_xyz)
+                    stack_xyz[2] = stack_xyz[2] + 38
+                    stack_num = stack_num + 1
+                    if stack_num >= 3:
+                        stack_xyz[0] = stack_xyz[0] + 100
+                        stack_xyz[2] = -10
+                        stack_num = 0
+                else:
+                    print("Place small block to ", small_xyz)
+                    self.auto_place(small_xyz)
+                    small_xyz[0] = small_xyz[0] - 75
+                    if small_xyz[0] < 125:
+                        small_xyz[0] = 350
+                        small_xyz[1] = -50
+
+            self.detect(ignore=5, sort_key="distance")
+
+        self.rxarm.go_to_home_pose(moving_time=2,
+                                    accel_time=0.5,
+                                    blocking=True)
+        self.rxarm.go_to_sleep_pose(moving_time=2,
+                                    accel_time=0.5,
+                                    blocking=True)
+        self.detect(ignore=3, sort_key="distance")
+        self.rxarm.go_to_home_pose(moving_time=2,
+                                    accel_time=0.5,
+                                    blocking=True)
+
+        while blocks.detected_num > 0:
+            block_xyz = blocks.xyzs[0]
+            ori = blocks.thetas[0]
+            pick_sucess, _ = self.auto_pick(block_xyz, ori)
+            if not pick_sucess:
+                self.rxarm.go_to_home_pose(moving_time=2,
+                                    accel_time=0.5,
+                                    blocking=True)
+                self.rxarm.go_to_sleep_pose(moving_time=2,
+                                            accel_time=0.5,
+                                            blocking=True)
+            else:
+                print("Place large block to ", stack_xyz)
+                self.auto_place(stack_xyz)
+                stack_xyz[2] = stack_xyz[2] + 25
+                stack_num = stack_num + 1
+                if stack_num >= 3:
+                    stack_xyz[0] = stack_xyz[0] + 100
+                    stack_xyz[2] = -10
+                    stack_num = 0
+
+            self.detect(ignore=3, sort_key="distance")
+        
+        self.rxarm.go_to_home_pose(moving_time=2,
+                                    accel_time=0.5,
+                                    blocking=True)
+        self.rxarm.go_to_sleep_pose(moving_time=2,
+                                    accel_time=0.5,
+                                    blocking=True)
+
+        if not self.next_state == "estop":
+            self.next_state = "idle"
+
 
     def calibrate(self):
         """!
@@ -636,13 +839,15 @@ class StateMachine():
         blocks = self.camera.block_detections
         for i in range(blocks.detected_num):
             dist = self.line_dist(blocks.xyzs[i, :2], target_xyz[:2])
-            # print("path point dist {0}".format(dist))
+            print("path point dist {0}".format(dist))
+            if dist == 0:
+                continue
             if dist < 50:
                 return False
 
         return True
 
-    def detect(self, ignore=None):
+    def detect(self, ignore=None, sort_key="color"):
         """!
         @brief      Detect the blocks
         """
@@ -655,7 +860,7 @@ class StateMachine():
         self.current_state = "detect"
         self.status_message = "Detecting blocks..."
         img_h, img_w = 720, 1280
-        frac = 2/3
+        frac = 3.0 / 4.0
         blind_rectangle = None
         if ignore==1:
             blind_rectangle = [(int(img_w/2), 0), (img_w, int(img_h*frac))]
@@ -668,7 +873,7 @@ class StateMachine():
         elif ignore==5: # negative half plane
             blind_rectangle = [(0, int(img_h*frac)), (img_w, img_h)]
 
-        self.camera.detectBlocksInDepthImage(blind_rect=blind_rectangle)
+        self.camera.detectBlocksInDepthImage(blind_rect=blind_rectangle, sort_key=sort_key)
         rospy.sleep(0.1)
         self.next_state = "idel"
 

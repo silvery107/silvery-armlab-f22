@@ -26,7 +26,7 @@ from scipy import stats
 class BlockDetections():
     def __init__(self):
         self.detected_num = 0
-        self.small_num = 0
+        self.large_num = 0
         self.contours = None
         self.colors = None # range from 0 to 5 w.r. to rainbow color order
         self.thetas = None
@@ -35,7 +35,7 @@ class BlockDetections():
         self.xyzs = None
         self.all_contours = None
 
-    def update(self):
+    def update(self, key="color"):
         self.contours = np.array(self.contours)
         self.uvds = np.array(self.uvds, dtype=int)
         self.xyzs = np.array(self.xyzs, dtype=DTYPE)
@@ -43,13 +43,13 @@ class BlockDetections():
         self.thetas = np.array(self.thetas, dtype=DTYPE)
         self.sizes = np.array(self.sizes, dtype=int)
         self.detected_num = len(self.contours)
-        self.sort()
+        self.sort(key)
         # self.colors = 
         # self.thetas = thetas
 
     def reset(self):
         self.detected_num = 0
-        self.small_num = 0
+        self.large_num = 0
         self.contours = []
         self.colors = []
         self.thetas = []
@@ -66,20 +66,31 @@ class BlockDetections():
         self.uvds[begin:end] = self.uvds[begin:end][indices]
         self.xyzs[begin:end] = self.xyzs[begin:end][indices]
 
-    def sort(self):
+    def sort(self, key="color"):
         """
         Sort blocks by color and size
         size: small to large
         color: rainbow color order
         """
-        small_to_large = np.argsort(self.sizes)
-        self._sort_by_idx(small_to_large, 0, self.detected_num)
-        small_num = np.bincount(self.sizes)[0]
-        s_rainbow_order = np.argsort(self.colors[0:small_num])
-        self._sort_by_idx(s_rainbow_order, 0, small_num)
-        l_rainbow_order = np.argsort(self.colors[small_num:])
-        self._sort_by_idx(l_rainbow_order, small_num, self.detected_num)
-        self.small_num = small_num
+        if self.detected_num==0:
+            return
+
+        if key == "color":
+            large_to_small = np.argsort(self.sizes)
+            self._sort_by_idx(large_to_small, 0, self.detected_num)
+            large_num = np.bincount(self.sizes)[0]
+            self.large_num = large_num
+        
+            l_rainbow_order = np.argsort(self.colors[0:large_num])
+            self._sort_by_idx(l_rainbow_order, 0, large_num)
+            s_rainbow_order = np.argsort(self.colors[large_num:])
+            self._sort_by_idx(s_rainbow_order, large_num, self.detected_num)
+
+        elif key == "distance":
+            dist_xy = np.linalg.norm(self.xyzs, axis=1)
+            dist_order = np.argsort(dist_xy)
+            self._sort_by_idx(dist_order, 0, self.detected_num)
+    
         print("[BLOCKS] Find blocks with color {}".format(self.colors))
 
 
@@ -141,6 +152,23 @@ class Camera():
         """!
         @brief      Process a video frame
         """
+        # img_h, img_w = 720, 1280
+        # frac = 3.0 / 4.0
+        # blind_rectangle = None
+        # ignore = 3
+        # if ignore==1:
+        #     blind_rectangle = [(int(img_w/2), 0), (img_w, int(img_h*frac))]
+        # elif ignore==2:
+        #     blind_rectangle = [(0, 0), (int(img_w/2), int(img_h/3/2))]
+        # elif ignore==3:
+        #     blind_rectangle = [(0, int(img_h*frac)), (int(img_w/2), img_h)]
+        # elif ignore==4:
+        #     blind_rectangle = [(int(img_w/2), int(img_h*frac)), (img_w, img_h)]
+        # elif ignore==5: # negative half plane
+        #     blind_rectangle = [(0, int(img_h*frac)), (img_w, img_h)]
+        # cv2.rectangle(self.ProcessVideoFrame, blind_rectangle[0],blind_rectangle[1], (255, 0, 0), 2)
+
+
         cv2.rectangle(self.ProcessVideoFrame, (275,120),(1100,720), (255, 0, 0), 2)
         cv2.rectangle(self.ProcessVideoFrame, (575,400),(750,720), (255, 0, 0), 2)
         if self.block_detections.detected_num < 1:
@@ -275,7 +303,7 @@ class Camera():
         """
         pass
 
-    def detectBlocksInDepthImage(self, _lower=700, _upper=960, blind_rect=None):
+    def detectBlocksInDepthImage(self, _lower=700, _upper=960, blind_rect=None, sort_key="color"):
         """!
         @brief      Detect blocks from depth
 
@@ -357,7 +385,7 @@ class Camera():
             self.block_detections.thetas.append(np.deg2rad(block_ori))
             self.block_detections.colors.append(self.retrieve_area_color(self.ProcessVideoFrameLab, contours_new_valid))
 
-        self.block_detections.update()
+        self.block_detections.update(sort_key)
 
     def retrieve_area_color(self, frame, contour):
         mask = np.zeros(frame.shape[:2], dtype="uint8")
@@ -450,7 +478,7 @@ class DepthListener:
     def callback(self, image_data):
         try:
             # cv_depth = self.bridge.imgmsg_to_cv2(image_data, image_data.encoding)
-            cv_depth = np.frombuffer(image_data.data[:-1], dtype=np.uint16).reshape(image_data.height, image_data.width)
+            cv_depth = np.frombuffer(image_data.data, dtype=np.uint16).reshape(image_data.height, image_data.width)
             #cv_depth = cv2.rotate(cv_depth, cv2.ROTATE_180)
         except Exception as e:
             print(e)
