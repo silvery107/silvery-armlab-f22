@@ -637,6 +637,8 @@ class StateMachine():
         for i in range(blocks.detected_num):
             dist = self.line_dist(blocks.xyzs[i, :2], target_xyz[:2])
             # print("path point dist {0}".format(dist))
+            if dist == 0:
+                continue
             if dist < 50:
                 return False
 
