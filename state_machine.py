@@ -235,9 +235,8 @@ class StateMachine():
         ############ Planning #############
         print("[PICK] Planning waypoints...")
         pick_stable = True
-        pick_height_offset = 10
-        pick_wrist_offset = np.pi/18.0/2.0
-        joint_angles_home = [0, 0, 0, 0, 0]
+        pick_height_offset = 10 + 19
+        pick_wrist_offset = np.pi/18.0/3.0
         target_world_pos[2] = target_world_pos[2] + pick_height_offset
         above_world_pos = deepcopy(target_world_pos)
         above_world_pos[2] = target_world_pos[2] + pick_height_offset + 80
@@ -269,6 +268,11 @@ class StateMachine():
 
         # add horizontal reach by detecting distance between the projection of arm and the target point
         if self.check_path_clean(target_world_pos):
+            # pick_height_offset = 19
+            # pick_wrist_offset = np.pi/18.0/3.0
+            # target_world_pos[2] = target_world_pos[2] + pick_height_offset
+            # above_world_pos = deepcopy(target_world_pos)
+            # above_world_pos[2] = target_world_pos[2] + pick_height_offset + 80
             # Try horizontal reach with phi = 0.0
             if not reachable_high or not reachable_low:
                 pick_stable = False
@@ -499,7 +503,7 @@ class StateMachine():
         # joint_angles_end = [0, np.pi/4, 0, -np.pi/2, 0]
         # joint_angles_end[0] = joint_angles_1[0]
         joint_angles_end = copy(joint_angles_1)
-        joint_angles_end[1] = 0
+        joint_angles_end[1] = -np.pi/6
         joint_angles_end[2] = 0
         joint_angles_end[3] = -np.pi/2
         joint_angles_end[4] = 0
@@ -839,7 +843,7 @@ class StateMachine():
         blocks = self.camera.block_detections
         for i in range(blocks.detected_num):
             dist = self.line_dist(blocks.xyzs[i, :2], target_xyz[:2])
-            print("path point dist {0}".format(dist))
+            # print("path point dist {0}".format(dist))
             if dist == 0:
                 continue
             if dist < 50:

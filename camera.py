@@ -340,9 +340,9 @@ class Camera():
             cv2.drawContours(mask_single, [contour], -1, 255, cv2.FILLED)
             depth_single = cv2.bitwise_and(self.ProcessDepthFrameRaw, self.ProcessDepthFrameRaw, mask=mask_single)
             depth_array = depth_single[depth_single>0]
-            mode, count = stats.mode(depth_array)
+            mode = np.min(depth_array)
             # !!! Attention to the mode offset, it determines how much of the top surface area will be reserved
-            depth_new = cv2.inRange(depth_single, lower, int(mode)+4)
+            depth_new = cv2.inRange(depth_single, lower, int(mode)+5)
             contours_new, _ = cv2.findContours(depth_new, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[-2:]
             contours_new_valid = max(contours_new, key=cv2.contourArea) # find the largest contour
             M = cv2.moments(contours_new_valid)
@@ -373,14 +373,23 @@ class Camera():
             cx = int(M['m10']/M['m00'])
             cy = int(M['m01']/M['m00'])
             cz = self.ProcessDepthFrameRaw[cy, cx]
+            block_ori = - cv2.minAreaRect(contours_new_valid)[2] # turn the range from [-90, 0) to (0, 90]
+
+            block_xyz = self.coord_pixel_to_world(cx, cy, cz)
+            dist = np.linalg.norm(block_xyz[:2])
+            print("block dist", dist)
+            if dist >= 300 and dist<=435:
+                block_xyz[2] = block_xyz[2] + dist * 0.002
             # !!! size classification: attention to this moment threshold
             if M["m00"] < 800:
+                block_xyz[2] = block_xyz[2] - 12.5
                 self.block_detections.sizes.append(1) # 1 for small
             else:
+                block_xyz[2] = block_xyz[2] - 19
                 self.block_detections.sizes.append(0) # 0 for large
-            block_ori = - cv2.minAreaRect(contours_new_valid)[2] # turn the range from [-90, 0) to (0, 90]
+
             self.block_detections.uvds.append([cx, cy, cz])
-            self.block_detections.xyzs.append(self.coord_pixel_to_world(cx, cy, cz))
+            self.block_detections.xyzs.append(block_xyz)
             self.block_detections.contours.append(contours_new_valid)
             self.block_detections.thetas.append(np.deg2rad(block_ori))
             self.block_detections.colors.append(self.retrieve_area_color(self.ProcessVideoFrameLab, contours_new_valid))
