@@ -346,7 +346,7 @@ class Camera():
             depth_new = cv2.inRange(depth_single, lower, int(mode)+5)
             contours_new, _ = cv2.findContours(depth_new, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[-2:]
             if not contours_new:
-                return
+                continue
             contours_new_valid = max(contours_new, key=cv2.contourArea) # find the largest contour
             M = cv2.moments(contours_new_valid)
             if abs(M["m00"]) < 200:
@@ -379,10 +379,7 @@ class Camera():
             block_ori = - cv2.minAreaRect(contours_new_valid)[2] # turn the range from [-90, 0) to (0, 90]
 
             block_xyz = self.coord_pixel_to_world(cx, cy, cz)
-            dist = np.linalg.norm(block_xyz[:2])
-            # print("block dist", dist)
-            if dist >= 300 and dist<=435:
-                block_xyz[2] = block_xyz[2] + dist * 0.002
+
             # !!! size classification: attention to this moment threshold
             if M["m00"] < 800:
                 block_xyz[2] = block_xyz[2] - 12.5
