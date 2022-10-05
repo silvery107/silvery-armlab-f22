@@ -107,6 +107,8 @@ class StateMachine():
         if self.next_state == "task2":
             self.task2()
 
+        if self.next_state == "task3":
+            self.task3()
 
     """Functions run for each state"""
 
@@ -569,6 +571,9 @@ class StateMachine():
         self.detect(ignore=3)
         blocks = self.camera.block_detections
         
+        self.rxarm.go_to_home_pose(moving_time=2,
+                                    accel_time=0.5,
+                                    blocking=True)
         target_color = 0
         stack_xyz = [-250, 25, -5]
         destack_xyz = [-50, 200, 0]
