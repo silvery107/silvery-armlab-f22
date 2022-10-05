@@ -91,6 +91,7 @@ class Gui(QMainWindow):
 
         self.ui.btn_task1.clicked.connect(partial(nxt_if_arm_init, 'task1'))
         self.ui.btn_task2.clicked.connect(partial(nxt_if_arm_init, 'task2'))
+        self.ui.btn_task3.clicked.connect(partial(nxt_if_arm_init, 'task3'))
 
         #User Buttons
         self.ui.btnUser1.setText("Calibrate")
