@@ -227,6 +227,9 @@ class StateMachine():
         click_uvd = np.append(pt, z)
         target_world_pos, block_ori = self.get_block_xyz_from_click(click_uvd)
 
+        self.rxarm.go_to_home_pose(moving_time=2,
+                                    accel_time=0.5,
+                                    blocking=True)
         # target_world_pos = self.camera.coord_pixel_to_world(block_uvd[0], block_uvd[1], block_uvd[2]).flatten().tolist()
         self.auto_pick(target_world_pos, block_ori)
         if not self.next_state == "estop":
@@ -575,8 +578,8 @@ class StateMachine():
                                     accel_time=0.5,
                                     blocking=True)
         target_color = 0
-        stack_xyz = [-250, 25, -5]
-        destack_xyz = [-50, 200, 0]
+        stack_xyz = [-250, -100, -5]
+        destack_xyz = [-400, -100, -5]
 
         ############ Real Test ##############
         while blocks.detected_num>0:
@@ -609,7 +612,8 @@ class StateMachine():
             else:
                 # No execution but look for next rainbow color
                 target_color  = target_color + 1
-
+            if target_color > 5:
+                break
             self.detect(ignore=3) # ignore the left negtive half plane
             blocks = self.camera.block_detections
 
