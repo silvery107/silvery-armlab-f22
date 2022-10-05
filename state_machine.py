@@ -804,6 +804,22 @@ class StateMachine():
 
         """Perform camera calibration routine here"""
         self.status_message = "Calibration - Completed Calibration"
+
+        # Align depth image with color image using homography
+        points_dst = np.array([[226, 89],
+                                [1091, 90],
+                                [226, 700],
+                                [1091, 701]])
+
+        points_src = np.array([[238, 98],
+                                [1079, 99],
+                                [235, 690],
+                                [1080, 690]])
+
+        self.camera.homography, _ = cv2.findHomography(points_src, points_dst)
+        # self.camera.homography = self.camera.homography / self.camera.homography[2,2]
+        # print(self.homography)
+        
         tagPoints = np.zeros((4, 3), dtype=DTYPE)
         if len(self.camera.tag_detections.detections)<4:
             self.next_state = "idel"
@@ -831,9 +847,9 @@ class StateMachine():
         self.camera.extrinsic_matrix = np.row_stack((extrinsic_temp, extrinsic_pad)) # 4x4
         self.camera.extrinsic_matrix_inv = np.linalg.pinv(self.camera.extrinsic_matrix)
         self.camera.cameraCalibrated = True
-        print("[CALIBRATE]  Calibration successed!")
         # print(self.camera.extrinsic_matrix)
-        
+        print("[CALIBRATE]  Calibration successed!")
+
         self.next_state = "idle"
         return True
         

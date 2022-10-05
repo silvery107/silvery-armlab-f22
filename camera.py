@@ -138,6 +138,8 @@ class Camera():
         self.color_lab_mean = cv2.cvtColor(self.color_rgb_mean[:,None,:], cv2.COLOR_RGB2LAB).squeeze()
         self.size_id = ["large", "small"]
 
+        self.homography = None
+
         # ML model 
         # TODO
         # self.device = "cpu"
@@ -168,8 +170,8 @@ class Camera():
         # cv2.rectangle(self.ProcessVideoFrame, blind_rectangle[0],blind_rectangle[1], (255, 0, 0), 2)
 
 
-        cv2.rectangle(self.ProcessVideoFrame, (210,105),(1105,700), (255, 0, 0), 2)
-        cv2.rectangle(self.ProcessVideoFrame, (575,400),(750,700), (255, 0, 0), 2)
+        cv2.rectangle(self.ProcessVideoFrame, (225, 90),(1090, 700), (255, 0, 0), 2)
+        cv2.rectangle(self.ProcessVideoFrame, (575, 400),(750, 700), (255, 0, 0), 2)
         if self.block_detections.detected_num < 1:
             return
         for idx, (color, pixel, point, size, theta) in enumerate(zip(self.block_detections.colors, self.block_detections.uvds, self.block_detections.xyzs, self.block_detections.sizes, self.block_detections.thetas)):
@@ -188,7 +190,7 @@ class Camera():
         """!
         @brief Converts frame to colormaped formats in HSV and RGB
         """
-        self.DepthFrameHSV[..., 0] = self.DepthFrameRaw >> 1
+        self.DepthFrameHSV[..., 0] = self.ProcessDepthFrameRaw >> 1
         self.DepthFrameHSV[..., 1] = 0xFF
         self.DepthFrameHSV[..., 2] = 0x9F
         self.DepthFrameRGB = cv2.cvtColor(self.DepthFrameHSV,
@@ -316,8 +318,8 @@ class Camera():
         self.ProcessDepthFrameRaw = cv2.medianBlur(self.ProcessDepthFrameRaw, 3)
         mask = np.zeros_like(self.ProcessDepthFrameRaw, dtype=np.uint8)
         # !!! Attention to these rectangles's range
-        cv2.rectangle(mask, (210,105),(1105,700), 255, cv2.FILLED)
-        cv2.rectangle(mask, (575,400),(750,700), 0, cv2.FILLED)
+        cv2.rectangle(mask, (225, 90), (1090, 700), 255, cv2.FILLED)
+        cv2.rectangle(mask, (575, 400), (750, 700), 0, cv2.FILLED)
         if blind_rect is not None:
             cv2.rectangle(mask, blind_rect[0], blind_rect[1], 0, cv2.FILLED)
 
@@ -343,6 +345,8 @@ class Camera():
             # !!! Attention to the mode offset, it determines how much of the top surface area will be reserved
             depth_new = cv2.inRange(depth_single, lower, int(mode)+5)
             contours_new, _ = cv2.findContours(depth_new, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[-2:]
+            if not contours_new:
+                return
             contours_new_valid = max(contours_new, key=cv2.contourArea) # find the largest contour
             M = cv2.moments(contours_new_valid)
             if abs(M["m00"]) < 200:
@@ -376,7 +380,7 @@ class Camera():
 
             block_xyz = self.coord_pixel_to_world(cx, cy, cz)
             dist = np.linalg.norm(block_xyz[:2])
-            print("block dist", dist)
+            # print("block dist", dist)
             if dist >= 300 and dist<=435:
                 block_xyz[2] = block_xyz[2] + dist * 0.002
             # !!! size classification: attention to this moment threshold
@@ -536,7 +540,11 @@ class VideoThread(QThread):
             if self.camera.colorReceived and self.camera.depthReceived:
                 self.camera.ProcessVideoFrame = self.camera.VideoFrame.copy()
                 self.camera.ProcessVideoFrameLab = cv2.cvtColor(self.camera.ProcessVideoFrame, cv2.COLOR_RGB2LAB)
-                self.camera.ProcessDepthFrameRaw = self.camera.DepthFrameRaw.copy()
+                if self.camera.homography is not None:
+                    self.camera.ProcessDepthFrameRaw = cv2.warpPerspective(self.camera.DepthFrameRaw.copy(), self.camera.homography, (1280, 720))
+                else:
+                    self.camera.ProcessDepthFrameRaw = self.camera.DepthFrameRaw.copy()
+
                 # self.camera.detectBlocksInDepthImage()
                 self.camera.processVideoFrame()
             rgb_frame = self.camera.convertQtVideoFrame()
