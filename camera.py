@@ -169,7 +169,7 @@ class Camera():
         # cv2.rectangle(self.ProcessVideoFrame, blind_rectangle[0],blind_rectangle[1], (255, 0, 0), 2)
 
 
-        cv2.rectangle(self.ProcessVideoFrame, (275,120),(1100,720), (255, 0, 0), 2)
+        cv2.rectangle(self.ProcessVideoFrame, (210,105),(1105,720), (255, 0, 0), 2)
         cv2.rectangle(self.ProcessVideoFrame, (575,400),(750,720), (255, 0, 0), 2)
         if self.block_detections.detected_num < 1:
             return
