@@ -534,7 +534,7 @@ class StateMachine():
                 print("[LINE UP]    Placing {} block...".format(self.camera.color_id[blocks.colors[idx]]))
                 place_ret = self.auto_place(line_start_xyz, block_ori=0)
                 if place_ret:
-                    x_step = -50 if blocks.sizes[idx] == 0 else -37 # increase line up space by block's size
+                    x_step = -55 if blocks.sizes[idx] == 0 else -42 # increase line up space by block's size
                     line_start_xyz[0] = line_start_xyz[0] + x_step
         
         print("[LINE UP]    Lining up finished")
@@ -578,8 +578,8 @@ class StateMachine():
         #                             accel_time=0.5,
         #                             blocking=True)
         target_color = 0
-        stack_xyz = [-250, -100, -10]
-        destack_xyz = [-400, -100, -10]
+        stack_xyz = [-300, -100, -10]
+        destack_xyz = [300, -100, -10]
         rainbow_count = 0
         ############ Real Test ##############
         while blocks.detected_num>0:
@@ -593,7 +593,7 @@ class StateMachine():
                 else:
                     # Destack blocks more than 1 high
                     for idx in range(blocks.detected_num):
-                        if blocks.xyzs[idx, 2] > 50 and stack_order.count(idx)<1:
+                        if blocks.xyzs[idx, 2] > 40 and stack_order.count(idx)<1:
                             destack_order.append(idx)
                     break
             
@@ -620,7 +620,9 @@ class StateMachine():
 
             if target_color > 5:
                 target_color = 0
-                rainbow_count = rainbow_count+1
+                rainbow_count = rainbow_count + 1
+                stack_xyz[0] = - 200
+                stack_xyz[2] = -10
                 if rainbow_count == 2:
                     break
 
