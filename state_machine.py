@@ -477,7 +477,7 @@ class StateMachine():
         current_effort = self.rxarm.get_efforts()
         print("initial: ", current_effort)
         temp_joint = np.array(joint_angles_1)
-        for i in range(6):
+        for i in range(10):
             displacement_unit = displacement_unit / 2
             temp_joint = temp_joint + displacement_unit
             move_time, ac_time = self.calMoveTime(temp_joint)
@@ -574,13 +574,13 @@ class StateMachine():
         self.detect(ignore=3)
         blocks = self.camera.block_detections
         
-        self.rxarm.go_to_home_pose(moving_time=2,
-                                    accel_time=0.5,
-                                    blocking=True)
+        # self.rxarm.go_to_home_pose(moving_time=2,
+        #                             accel_time=0.5,
+        #                             blocking=True)
         target_color = 0
-        stack_xyz = [-250, -100, -5]
-        destack_xyz = [-400, -100, -5]
-
+        stack_xyz = [-250, -100, -10]
+        destack_xyz = [-400, -100, -10]
+        rainbow_count = 0
         ############ Real Test ##############
         while blocks.detected_num>0:
             stack_order = []
@@ -599,8 +599,13 @@ class StateMachine():
             
             if stack_order or destack_order:
                 # Execute auto stack according to stack_order
+                self.rxarm.go_to_home_pose(moving_time=2,
+                                            accel_time=0.5,
+                                            blocking=True)
+                print("stack", stack_order)
                 stack_xyz = self.auto_stack(blocks, stack_xyz, stack_order)
                 # Execute auto lineup according to destack_order
+                print("destack", destack_order)
                 destack_xyz = self.auto_lineup(blocks, destack_xyz, destack_order)
                 
                 self.rxarm.go_to_home_pose(moving_time=2,
@@ -612,8 +617,13 @@ class StateMachine():
             else:
                 # No execution but look for next rainbow color
                 target_color  = target_color + 1
+
             if target_color > 5:
-                break
+                target_color = 0
+                rainbow_count = rainbow_count+1
+                if rainbow_count == 2:
+                    break
+
             self.detect(ignore=3) # ignore the left negtive half plane
             blocks = self.camera.block_detections
 
@@ -627,7 +637,7 @@ class StateMachine():
         self.rxarm.go_to_sleep_pose(moving_time=2,
                                     accel_time=0.5,
                                     blocking=True)
-
+        print("Test Finished!!!")
         if not self.next_state == "estop":
             self.next_state = "idle"
 
