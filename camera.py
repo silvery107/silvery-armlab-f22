@@ -131,9 +131,9 @@ class Camera():
         self.color_rgb_mean = np.array([[127, 19, 30],
                                         [164, 66, 5],
                                         [218, 180, 30],
-                                        [43, 118, 85],
-                                        [0, 65, 117],
-                                        [65, 45, 73]],
+                                        [30, 110, 60],
+                                        [5, 60, 110],
+                                        [50, 50, 73]],
                                         dtype=np.uint8)
         self.color_lab_mean = cv2.cvtColor(self.color_rgb_mean[:,None,:], cv2.COLOR_RGB2LAB).squeeze()
         self.size_id = ["large", "small"]
@@ -168,17 +168,17 @@ class Camera():
         # cv2.rectangle(self.ProcessVideoFrame, blind_rectangle[0],blind_rectangle[1], (255, 0, 0), 2)
 
 
-        cv2.rectangle(self.ProcessVideoFrame, (210,105),(1105,720), (255, 0, 0), 2)
-        cv2.rectangle(self.ProcessVideoFrame, (575,400),(750,720), (255, 0, 0), 2)
+        cv2.rectangle(self.ProcessVideoFrame, (210,105),(1105,700), (255, 0, 0), 2)
+        cv2.rectangle(self.ProcessVideoFrame, (575,400),(750,700), (255, 0, 0), 2)
         if self.block_detections.detected_num < 1:
             return
         for idx, (color, pixel, point, size, theta) in enumerate(zip(self.block_detections.colors, self.block_detections.uvds, self.block_detections.xyzs, self.block_detections.sizes, self.block_detections.thetas)):
             cx, cy = pixel[:2]
-            cv2.putText(self.ProcessVideoFrame, self.color_id[color], (cx-30, cy+30), self.font, 0.5, (0,0,0), thickness=2)
-            cv2.putText(self.ProcessVideoFrame, self.size_id[size], (cx-30, cy+45), self.font, 0.5, (0,0,0), thickness=2)
+            cv2.putText(self.ProcessVideoFrame, self.color_id[color], (cx-30, cy+30), self.font, 0.5, self.color_rgb_mean[color].tolist(), thickness=2)
+            cv2.putText(self.ProcessVideoFrame, self.size_id[size], (cx-30, cy+45), self.font, 0.5, (255,255,255), thickness=2)
             # cv2.putText(self.ProcessVideoFrame, "+", (cx-12, cy+8), self.font, 1, (0,0,0), thickness=2)
             # cv2.putText(self.ProcessVideoFrame, str(idx), (cx-30, cy+75), self.font, 1, (0,0,0), thickness=2)
-            cv2.putText(self.ProcessVideoFrame, str(int(np.rad2deg(theta))), (cx, cy), self.font, 0.5, (255,255,255), thickness=1)
+            # cv2.putText(self.ProcessVideoFrame, str(int(np.rad2deg(theta))), (cx, cy), self.font, 0.5, (255,255,255), thickness=1)
             # cv2.putText(self.ProcessVideoFrame, "%.0f"%(point[2]), (cx-20, cy+55), self.font, 0.5, (0,0,0), thickness=2)
 
         cv2.drawContours(self.ProcessVideoFrame, self.block_detections.all_contours, -1, (255, 0, 0), 1)
@@ -316,8 +316,8 @@ class Camera():
         self.ProcessDepthFrameRaw = cv2.medianBlur(self.ProcessDepthFrameRaw, 3)
         mask = np.zeros_like(self.ProcessDepthFrameRaw, dtype=np.uint8)
         # !!! Attention to these rectangles's range
-        cv2.rectangle(mask, (275,120),(1100,720), 255, cv2.FILLED)
-        cv2.rectangle(mask, (575,400),(750,720), 0, cv2.FILLED)
+        cv2.rectangle(mask, (210,105),(1105,700), 255, cv2.FILLED)
+        cv2.rectangle(mask, (575,400),(750,700), 0, cv2.FILLED)
         if blind_rect is not None:
             cv2.rectangle(mask, blind_rect[0], blind_rect[1], 0, cv2.FILLED)
 
@@ -325,7 +325,7 @@ class Camera():
         img_depth_thr = cv2.bitwise_and(depth_seg, mask)
 
         contours, _ = cv2.findContours(img_depth_thr, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[-2:]
-        
+
         self.block_detections.all_contours = contours
 
         cv2.drawContours(self.ProcessVideoFrame, contours, -1, (255, 0, 0), 1)
@@ -391,16 +391,27 @@ class Camera():
             self.block_detections.xyzs.append(block_xyz)
             self.block_detections.contours.append(contours_new_valid)
             self.block_detections.thetas.append(np.deg2rad(block_ori))
-            self.block_detections.colors.append(self.retrieve_area_color(self.ProcessVideoFrameLab, contours_new_valid))
+            self.block_detections.colors.append(self.retrieve_area_color(self.ProcessVideoFrame, self.ProcessVideoFrameLab, contours_new_valid))
 
         self.block_detections.update(sort_key)
 
-    def retrieve_area_color(self, frame, contour):
-        mask = np.zeros(frame.shape[:2], dtype="uint8")
-        cv2.drawContours(mask, [contour], -1, 255, cv2.FILLED)
-        mean = np.array(cv2.mean(frame, mask=mask)[:3], dtype=DTYPE)
-        # dist = self.color_rgb_mean - mean
-        dist = self.color_lab_mean - mean
+    def retrieve_area_color(self, frame_rgb, frame_lab, contour):
+        # RGB features
+        mask_rgb = np.zeros(frame_rgb.shape[:2], dtype="uint8")
+        cv2.drawContours(mask_rgb, [contour], -1, 255, cv2.FILLED)
+        mean_rgb = np.array(cv2.mean(frame_rgb, mask=mask_rgb)[:3], dtype=DTYPE)
+        dist_rgb = self.color_rgb_mean - mean_rgb
+        # print(dist_rgb.shape)
+        # LAB features
+        mask_lab = np.zeros(frame_lab.shape[:2], dtype="uint8")
+        cv2.drawContours(mask_lab, [contour], -1, 255, cv2.FILLED)
+        mean_lab = np.array(cv2.mean(frame_lab, mask=mask_lab)[:3], dtype=DTYPE)
+        dist_lab = self.color_lab_mean - mean_lab
+        # print(dist_lab.shape)
+        
+        dist = np.concatenate((dist_rgb, dist_lab), axis=1)
+        # print(dist.shape)
+        
         dist_norm = np.linalg.norm(dist, axis=1)
 
         # * Let's directly return color index for easy sorting
