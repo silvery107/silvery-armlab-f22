@@ -21,7 +21,6 @@ import yaml
 # from models.model import BlocksDataset
 
 from utils import DTYPE
-from scipy import stats
 
 class BlockDetections():
     def __init__(self):
@@ -69,7 +68,7 @@ class BlockDetections():
     def sort(self, key="color"):
         """
         Sort blocks by color and size
-        size: small to large
+        size: large to small
         color: rainbow color order
         """
         if self.detected_num==0:
@@ -87,7 +86,7 @@ class BlockDetections():
             self._sort_by_idx(s_rainbow_order, large_num, self.detected_num)
 
         elif key == "distance":
-            dist_xy = np.linalg.norm(self.xyzs, axis=1)
+            dist_xy = np.linalg.norm(self.xyzs[:, :2], axis=1)
             dist_order = np.argsort(dist_xy)
             self._sort_by_idx(dist_order, 0, self.detected_num)
     
