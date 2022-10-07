@@ -225,7 +225,7 @@ def IK_geometric(pose, block_ori=None, dh_params=None, m_matrix=None, s_list=Non
     # l4_unit: orientation of l4 w.r.t. origion
     l4_unit = np.array([-np.sin(theta1)*np.cos(phi), np.cos(theta1)*np.cos(phi), -np.sin(phi)], dtype=DTYPE)
     xc, yc, zc = pose[0:3] - l4*l4_unit # xyz of the wrist (t4)
-    # print((xc,yc,zc))
+    # print("xc, yc, zc; ", (xc,yc,zc))
     if np.sqrt(xc*xc + yc*yc + (zc - l1)*(zc - l1)) > (l2 + l3):
         # print("[KINEMATICS] Pose is unreachable! Cannot form a triangle.")
         return False, [0, 0, 0, 0, 0]
@@ -251,9 +251,9 @@ def IK_geometric(pose, block_ori=None, dh_params=None, m_matrix=None, s_list=Non
     else:
         if phi > np.pi/4.0:
             theta5 = theta1 - block_ori
-            if theta5 > np.pi/4.0:
+            while theta5 > np.pi/3.0:
                 theta5 = theta5 - np.pi/2.0
-            elif theta5 < - np.pi/4.0:
+            while theta5 < - np.pi/3.0:
                 theta5 = theta5 + np.pi/2.0
             # Additional rotation to enforce longitudinal pick
             if theta5 > 0:
@@ -273,6 +273,23 @@ def IK_geometric(pose, block_ori=None, dh_params=None, m_matrix=None, s_list=Non
     compare = fk_pose - pose
     # print('Tgt Pose: {} '.format(pose))
     # print('FK Pose:  {}'.format(fk_pose))
+
+    if theta1 > np.pi or theta1 < -np.pi:
+        return False, [0, 0, 0, 0, 0]
+
+    if theta2 >= np.deg2rad(113) or theta2 <= -np.deg2rad(108):
+        return False, [0, 0, 0, 0, 0]
+
+    if theta3 >= np.deg2rad(93) or theta3 <= -np.deg2rad(108):
+        return False, [0, 0, 0, 0, 0]
+
+    if theta4 >= np.deg2rad(123) or theta4 <= -np.deg2rad(100):
+        return False, [0, 0, 0, 0, 0]
+
+    if theta5 >= np.pi or theta5 < -np.pi:
+        return False, [0, 0, 0, 0, 0]
+
+
     if np.allclose(compare, np.zeros_like(compare), rtol=1e-1, atol=1e-1):
         # print('[KINEMATICS] Pose matches with FK.')
         return True, [theta1, theta2, -theta3, -theta4, theta5] # reverse t3 and t4 to match the real motor setting
