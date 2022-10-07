@@ -248,6 +248,8 @@ def IK_geometric(pose, block_ori=None, dh_params=None, m_matrix=None, s_list=Non
     # b. hori. pick: 0 
     if block_ori is None:
         theta5 = 0
+    elif block_ori < 0:
+        theta5 = np.pi/2
     else:
         if phi > np.pi/4.0:
             theta5 = theta1 - block_ori

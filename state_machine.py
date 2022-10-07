@@ -93,6 +93,9 @@ class StateMachine():
         if self.next_state == "play":
             self.play()
 
+        if self.next_state == "clean":
+            self.clean()
+
         if self.next_state == "pick":
             self.pick()
 
@@ -245,6 +248,7 @@ class StateMachine():
     def auto_pick(self, _target_world_pos, block_ori):
         target_world_pos = deepcopy(_target_world_pos)
         above_world_pos = deepcopy(_target_world_pos)
+
         ############ Planning #############
         print("[PICK] Planning waypoints...")
         pick_stable = True
@@ -360,11 +364,11 @@ class StateMachine():
         gripper_distance = self.rxarm.get_gripper_position()
         print("[PICK] Gripper Dist: {:.4f}".format(gripper_distance))
         # TODO return pick fail according to gripper distance
-        if gripper_distance == 0.03:
+        if gripper_distance <= 0.03:
             print("[PICK] Failed to grab the block!")
             return False, pick_stable
         else:
-            print("[PICK] PICK finished!")
+            print("[PICK] Pick finished!")
             return True, pick_stable
 
     def place(self):
@@ -388,13 +392,13 @@ class StateMachine():
 
     def auto_place(self, _target_world_pos, block_ori=None, phi=np.pi/2):
         target_world_pos = deepcopy(_target_world_pos)
+        above_world_pos = deepcopy(_target_world_pos)
 
         ############ Planning #############
         print("[PLACE]  Planning waypoints...")
         place_height_offset = 33
         place_wrist_offset = np.pi/18.0/2.0
         target_world_pos[2] = target_world_pos[2] + place_height_offset
-        above_world_pos = deepcopy(target_world_pos)
         above_world_pos[2] = target_world_pos[2] + place_height_offset + 80
 
         reachable_low, reachable_high = False, False
@@ -529,7 +533,119 @@ class StateMachine():
                                         accel_time=ac_time,
                                         blocking=True)
 
-        print("[PLACE]  PLACE finished!")
+        print("[PLACE]  Place finished!")
+        return True
+
+    def clean(self):
+        self.status_message = "State: Clean - Click to clean"
+        self.current_state = "clean"
+        self.camera.new_click = False
+        print("[CLICK CLEAN] Please click one cluster to clean...")
+        while not self.camera.new_click:
+            rospy.sleep(0.05)
+        
+        self.camera.new_click = False
+        pt = self.camera.last_click
+        z = self.camera.DepthFrameRaw[pt[1]][pt[0]]
+        click_uvd = np.append(pt, z)
+        target_world_pos, block_ori = self.get_block_xyz_from_click(click_uvd)
+
+        self.rxarm.go_to_home_pose(moving_time=2,
+                                    accel_time=0.5,
+                                    blocking=True)
+        
+        self.auto_clean(target_world_pos)
+        if not self.next_state == "estop":
+            self.next_state = "idle"
+
+    def auto_clean(self, _target_world_pos):
+        target_world_pos = deepcopy(_target_world_pos)
+
+        ############ Planning #############
+        print("[CLEAN] Planning waypoints...")
+        clean_height_offset = 10 + 19
+        clean_wrist_offset = np.pi/18.0/3.0
+        target_world_pos[2] = target_world_pos[2] + clean_height_offset
+
+        reachable_low = False
+
+        # Try vertical reach with phi = pi/2
+        reachable_low, joint_angles_2 = IK_geometric([target_world_pos[0], 
+                                                    target_world_pos[1],
+                                                    target_world_pos[2],
+                                                    np.pi/2],
+                                                    block_ori=-1, # negative value to enforce theta5 = np.pi/2
+                                                    m_matrix=self.rxarm.M_matrix,
+                                                    s_list=self.rxarm.S_list)
+
+        if not reachable_low:
+            reachable_low, joint_angles_2 = IK_geometric([target_world_pos[0], 
+                                                        target_world_pos[1], 
+                                                        target_world_pos[2], 
+                                                        0.0],
+                                                        m_matrix=self.rxarm.M_matrix,
+                                                        s_list=self.rxarm.S_list)
+
+        # Sweep a 30 degree sector
+        joint_angles_1 = copy(joint_angles_2)
+        joint_angles_1[0] = joint_angles_1[0] - np.pi/6/2
+        joint_angles_1[4] = 0
+
+        joint_angles_3 = copy(joint_angles_2)
+        joint_angles_3[0] = joint_angles_1[0] + np.pi/6/2
+        joint_angles_3[4] = 0
+
+        if not reachable_low:
+            if not self.next_state == "estop":
+                self.next_state = "idle"
+            print("[CLEAN] Target point is unreachable, remain idle!!!")
+            return False
+
+        ############ Executing #############
+        print("[CLEAN] Executing waypoints...")
+        # 1. rotate waise to the start pose
+        joint_angles_start = [0, 0, 0, 0, 0]
+        joint_angles_start[0] = joint_angles_1[0]
+
+        move_time, ac_time = self.calMoveTime(joint_angles_start)
+        self.rxarm.set_single_joint_position("waist", joint_angles_1[0], moving_time=move_time, accel_time=ac_time, blocking=True)
+
+        # 2. go to the start clean pose
+        move_time, ac_time = self.calMoveTime(joint_angles_1)
+        self.rxarm.set_joint_positions(joint_angles_1,
+                                        moving_time=move_time,
+                                        accel_time=ac_time,
+                                        blocking=True)
+
+        # 3. go to the block cluster pose
+        joint_angles_2[-2] = joint_angles_2[-2] + clean_wrist_offset
+        # move_time, ac_time = self.calMoveTime(joint_angles_2)
+        self.rxarm.set_joint_positions(joint_angles_2,
+                                        moving_time=1,
+                                        accel_time=1/4,
+                                        blocking=True)
+        
+        # 4. go to the end clean pose
+        move_time, ac_time = self.calMoveTime(joint_angles_3)
+        self.rxarm.set_joint_positions(joint_angles_3,
+                                        moving_time=1,
+                                        accel_time=1/4,
+                                        blocking=True)
+
+        # 5. raise to the theta2 = -pi/4 and theta4 = pi/4
+        joint_angles_end = copy(joint_angles_1)
+        joint_angles_end[1] = -np.pi/4
+        joint_angles_end[2] = 0
+        joint_angles_end[3] = -np.pi/2
+        joint_angles_end[4] = 0
+        move_time, ac_time = self.calMoveTime(joint_angles_end)
+        self.rxarm.set_joint_positions(joint_angles_end,
+                                        moving_time=move_time,
+                                        accel_time=ac_time,
+                                        blocking=True)
+
+
+        print("[CLEAN] Clean finished!")
         return True
 
     def auto_lineup(self, blocks, line_start_xyz, indices=None):
