@@ -586,13 +586,13 @@ class StateMachine():
                                                         m_matrix=self.rxarm.M_matrix,
                                                         s_list=self.rxarm.S_list)
 
-        # Sweep a 30 degree sector
+        # Sweep a 45 degree sector
         joint_angles_1 = copy(joint_angles_2)
-        joint_angles_1[0] = joint_angles_1[0] - np.pi/6/2
+        joint_angles_1[0] = joint_angles_2[0] - np.pi/4/2
         joint_angles_1[4] = 0
 
         joint_angles_3 = copy(joint_angles_2)
-        joint_angles_3[0] = joint_angles_1[0] + np.pi/6/2
+        joint_angles_3[0] = joint_angles_2[0] + np.pi/4/2
         joint_angles_3[4] = 0
 
         if not reachable_low:
@@ -633,7 +633,7 @@ class StateMachine():
                                         blocking=True)
 
         # 5. raise to the theta2 = -pi/4 and theta4 = pi/4
-        joint_angles_end = copy(joint_angles_1)
+        joint_angles_end = copy(joint_angles_3)
         joint_angles_end[1] = -np.pi/4
         joint_angles_end[2] = 0
         joint_angles_end[3] = -np.pi/2
