@@ -237,7 +237,7 @@ class StateMachine():
         self.rxarm.go_to_home_pose(moving_time=2,
                                     accel_time=0.5,
                                     blocking=True)
-        # target_world_pos = self.camera.coord_pixel_to_world(block_uvd[0], block_uvd[1], block_uvd[2]).flatten().tolist()
+        
         self.auto_pick(target_world_pos, block_ori)
         if not self.next_state == "estop":
             self.next_state = "idle"
@@ -287,11 +287,6 @@ class StateMachine():
 
         # add horizontal reach by detecting distance between the projection of arm and the target point
         if self.check_path_clean(target_world_pos):
-            # pick_height_offset = 19
-            # pick_wrist_offset = np.pi/18.0/3.0
-            # target_world_pos[2] = target_world_pos[2] + pick_height_offset
-            # above_world_pos = deepcopy(target_world_pos)
-            # above_world_pos[2] = target_world_pos[2] + pick_height_offset + 80
             # Try horizontal reach with phi = 0.0
             if not reachable_high or not reachable_low:
                 pick_stable = False
@@ -320,18 +315,6 @@ class StateMachine():
         
         ############ Executing #############
         print("[PICK] Executing waypoints...")
-        # 1. go to the home pose
-        # move_time, ac_time = self.calMoveTime(joint_angles_home)
-        # self.rxarm.go_to_home_pose(moving_time=move_time,
-        #                             accel_time=ac_time,
-        #                             blocking=True)
-        # if not self.rxarm.gripper_state:
-        #     self.rxarm.open_gripper()
-        #     self.rxarm.gripper_state = True
-
-        # 2. go to the point above target pose with waist angle move first
-        # move_time = np.abs(joint_angles_1[0]) / (np.pi / 5)
-        # ac_time = move_time / 4.0
         joint_angles_start = [0, 0, 0, 0, 0]
         joint_angles_start[0] = joint_angles_1[0]
 
@@ -398,9 +381,6 @@ class StateMachine():
         click_uvd = np.append(pt, z)
         target_world_pos, block_ori = self.get_block_xyz_from_click(click_uvd)
 
-        # print(target_world_pos)
-
-        # target_world_pos = self.camera.coord_pixel_to_world(block_uvd[0], block_uvd[1], block_uvd[2]).flatten().tolist()
         self.auto_place(target_world_pos, block_ori)
 
         if not self.next_state == "estop":
@@ -408,11 +388,7 @@ class StateMachine():
 
     def auto_place(self, _target_world_pos, block_ori=None, phi=np.pi/2):
         target_world_pos = deepcopy(_target_world_pos)
-        # print(target_world_pos)
-        # if _block_ori is not None:
-        #     block_ori = _block_ori
-        # else:
-        #     block_ori = 0.0
+
         ############ Planning #############
         print("[PLACE]  Planning waypoints...")
         place_height_offset = 33
@@ -541,8 +517,6 @@ class StateMachine():
                                         accel_time=ac_time,
                                         blocking=True)
 
-        # joint_angles_end = [0, np.pi/4, 0, -np.pi/2, 0]
-        # joint_angles_end[0] = joint_angles_1[0]
         joint_angles_end = copy(joint_angles_1)
         joint_angles_end[1] = -np.pi/6
         joint_angles_end[2] = 0
@@ -610,9 +584,6 @@ class StateMachine():
         self.detect(ignore=3)
         blocks = self.camera.block_detections
         
-        # self.rxarm.go_to_home_pose(moving_time=2,
-        #                             accel_time=0.5,
-        #                             blocking=True)
         target_color = 0
         stack_xyz = [-300, -100, -10]
         destack_xyz = [300, -100, -10]
@@ -1222,11 +1193,11 @@ class StateMachine():
         @brief      Detect the blocks
         """
         # 1280x720
-        # -----------------
+        # ----------------- 6 := 1 + 2
         # |  2    |    1  |
-        # ----------------- frac {2}{3}
+        # ----------------- frac {3}{4}
         # |  3  |ARM|  4  |
-        # ----------------- 5 := 3+4
+        # ----------------- 5 := 3 + 4
         self.current_state = "detect"
         self.status_message = "Detecting blocks..."
         img_h, img_w = 720, 1280
@@ -1242,11 +1213,11 @@ class StateMachine():
             blind_rectangle = [(int(img_w/2), int(img_h*frac)), (img_w, img_h)]
         elif ignore==5: # negative half plane
             blind_rectangle = [(0, int(img_h*frac)), (img_w, img_h)]
-        elif ignore==6:
+        elif ignore==6: # positive half plane
             blind_rectangle = [(0, 0), (img_w, int(img_h*frac))]
 
         self.camera.detectBlocksInDepthImage(blind_rect=blind_rectangle, sort_key=sort_key)
-        # rospy.sleep(0.1)
+
         self.next_state = "idel"
 
     def initialize_rxarm(self):
