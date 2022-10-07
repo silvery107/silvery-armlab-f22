@@ -374,8 +374,8 @@ class Camera():
             depth_array = depth_single[depth_single>=lower]
 
             # Stats mode range
-            # mode_real, _ = stats.mode(depth_array)
-            # print(mode_real)
+            mode_real, _ = stats.mode(depth_array)
+            print("real mode", mode_real)
             # depth_diff = np.abs(depth_array - mode_real)
             # depth_array_inliers = depth_array[depth_diff<10]
 
@@ -384,10 +384,11 @@ class Camera():
             Q3 = np.percentile(depth_array, 75, interpolation = 'midpoint')
             IQR = Q3 - Q1
             mode_lower = Q1 - 1.5 * IQR # outlier lower bound
+            print("IQR lower", mode_lower)
             depth_array_inliers = depth_array[depth_array>mode_lower]
             
             mode = np.min(depth_array_inliers)
-            print(mode)
+            print("result min", mode)
             # !!! Attention to the mode offset, it determines how much of the top surface area will be reserved
             depth_new = cv2.inRange(depth_single, lower, int(mode)+5)
             contours_new, _ = cv2.findContours(depth_new, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[-2:]
