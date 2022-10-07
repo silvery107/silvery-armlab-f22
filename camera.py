@@ -385,7 +385,7 @@ class Camera():
             IQR = Q3 - Q1
             mode_lower = Q1 - 1.5 * IQR # outlier lower bound
             print("IQR lower", mode_lower)
-            depth_array_inliers = depth_array[depth_array>mode_lower]
+            depth_array_inliers = depth_array[depth_array>=mode_lower]
             
             mode = np.min(depth_array_inliers)
             print("result min", mode)
