@@ -145,6 +145,7 @@ class Camera():
                                         dtype=np.uint8)
         self.color_lab_mean = cv2.cvtColor(self.color_rgb_mean[:,None,:], cv2.COLOR_RGB2LAB).squeeze()
         self.color_hsv_mean = cv2.cvtColor(self.color_rgb_mean[:,None,:], cv2.COLOR_RGB2HSV).squeeze()
+        self.color_mean = np.concatenate((self.color_rgb_mean, self.color_lab_mean, self.color_hsv_mean), axis=1)
         self.size_id = ["large", "small"]
 
         self.homography = None
@@ -446,43 +447,41 @@ class Camera():
         mask_rgb = np.zeros(frame_rgb.shape[:2], dtype="uint8")
         cv2.drawContours(mask_rgb, [contour], -1, 255, cv2.FILLED)
         mean_rgb = np.array(cv2.mean(frame_rgb, mask=mask_rgb)[:3], dtype=DTYPE)
-        dist_rgb = self.color_rgb_mean - mean_rgb
+        # dist_rgb = self.color_rgb_mean - mean_rgb
         # print(dist_rgb.shape)
 
         # LAB features
         mask_lab = np.zeros(frame_lab.shape[:2], dtype="uint8")
         cv2.drawContours(mask_lab, [contour], -1, 255, cv2.FILLED)
         mean_lab = np.array(cv2.mean(frame_lab, mask=mask_lab)[:3], dtype=DTYPE)
-        dist_lab = self.color_lab_mean - mean_lab
+        # dist_lab = self.color_lab_mean - mean_lab
         # print(dist_lab.shape)
 
         # HSV features
         mask_hsv = np.zeros(frame_hsv.shape[:2], dtype="uint8")
         cv2.drawContours(mask_hsv, [contour], -1, 255, cv2.FILLED)
         mean_hsv = np.array(cv2.mean(frame_hsv, mask=mask_hsv)[:3], dtype=DTYPE)
-        dist_hsv = self.color_hsv_mean - mean_hsv
+        # dist_hsv = self.color_hsv_mean - mean_hsv
 
-        dist = np.concatenate((dist_rgb, dist_lab, dist_hsv), axis=1)
-        # print(dist.shape)
-        
-        dist_norm = np.linalg.norm(dist, axis=1)
-        color_idx = np.argmin(dist_norm)
+        # dist = np.concatenate((dist_rgb, dist_lab, dist_hsv), axis=1)
 
         features = np.concatenate((mean_rgb, mean_lab, mean_hsv))
         # print(features.shape)
+        dist = self.color_mean - features
+        # print(dist.shape)
         data = features.tolist()
 
-        # print("COL", color_idx)
         if self.model is not None:
             pred = self.model.predict(features[None, :])
             data.append(int(pred))
-            # print("SVM", int(pred))
         else:
+            dist_norm = np.linalg.norm(dist, axis=1)
+            color_idx = np.argmin(dist_norm)
             data.append(color_idx)
 
-        with open("models/data.csv", 'a') as file:
-            writer = csv.writer(file)
-            writer.writerow(data)
+        # with open("models/data.csv", 'a') as file:
+        #     writer = csv.writer(file)
+        #     writer.writerow(data)
 
         # * Let's directly return color index for easy sorting
         if self.model is not None:

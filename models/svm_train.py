@@ -40,5 +40,5 @@ plt.show()
 
 if train:
     # save
-    with open('model.pkl','wb') as f:
+    with open('models/model.pkl','wb') as f:
         pickle.dump(svm, f)
