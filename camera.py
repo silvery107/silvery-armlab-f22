@@ -16,6 +16,13 @@ from sensor_msgs.msg import CameraInfo
 from apriltag_ros.msg import *
 # from cv_bridge import CvBridge, CvBridgeError
 import yaml
+import csv
+import pickle
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+from matplotlib import cm
+from scipy import stats
+
 # TODO
 # import torch
 # from models.model import BlocksDataset
@@ -108,6 +115,7 @@ class Camera():
         self.depthReceived = False
         self.ProcessVideoFrame = np.zeros((720, 1280, 3), dtype=np.uint8)
         self.ProcessVideoFrameLab = np.zeros((720, 1280, 3), dtype=np.uint8)
+        self.ProcessVideoFrameHSV = np.zeros((720, 1280, 3), dtype=np.uint8)
         self.ProcessDepthFrameRaw = np.zeros((720, 1280), dtype=np.uint16)
         """ Extra arrays for colormaping the depth image"""
         self.DepthFrameHSV = np.zeros((720, 1280, 3), dtype=np.uint8)
@@ -136,6 +144,7 @@ class Camera():
                                         [50, 50, 73]],
                                         dtype=np.uint8)
         self.color_lab_mean = cv2.cvtColor(self.color_rgb_mean[:,None,:], cv2.COLOR_RGB2LAB).squeeze()
+        self.color_hsv_mean = cv2.cvtColor(self.color_rgb_mean[:,None,:], cv2.COLOR_RGB2HSV).squeeze()
         self.size_id = ["large", "small"]
 
         self.homography = None
@@ -146,6 +155,10 @@ class Camera():
         # self.model = torch.load("models/model_fcn_re101_cpu.pth")
         # self.model.to(self.device)
         # self.model.eval()
+        self.model = None
+        with open('model.pkl', 'rb') as f:
+            self.model = pickle.load(f)
+        
 
         self.loadCameraCalibration("config/camera_calib.yaml")
 
@@ -332,6 +345,24 @@ class Camera():
 
         cv2.drawContours(self.ProcessVideoFrame, contours, -1, (255, 0, 0), 1)
 
+        # depth_stuff = cv2.bitwise_and(self.ProcessDepthFrameRaw, self.ProcessDepthFrameRaw, mask=img_depth_thr)
+        # d_array = depth_stuff[depth_stuff>0]
+        # d_sort = np.sort(d_array)
+        # fig = plt.figure()
+        # plt.scatter(np.arange(len(d_sort)), d_sort)
+        
+        # ax = fig.gca(projection='3d')
+        # xspan = np.arange(1280)
+        # yspan = np.arange(720)
+        # X, Y = np.meshgrid(xspan, yspan)
+        # print(np.max(depth_stuff))
+        # print(np.min(depth_stuff))
+        # surf = ax.plot_surface(X, Y, depth_stuff, cmap=cm.jet,
+        #             linewidth=0, antialiased=False)
+        # ax.set_zlim(0, 1000)
+                    
+        # plt.savefig("test.png")
+
         for contour in contours:
             M = cv2.moments(contour)
             if M['m00'] < 200 or abs(M["m00"]) > 7000:
@@ -340,8 +371,15 @@ class Camera():
             mask_single = np.zeros_like(self.ProcessDepthFrameRaw, dtype=np.uint8)
             cv2.drawContours(mask_single, [contour], -1, 255, cv2.FILLED)
             depth_single = cv2.bitwise_and(self.ProcessDepthFrameRaw, self.ProcessDepthFrameRaw, mask=mask_single)
-            depth_array = depth_single[depth_single>0]
-            mode = np.min(depth_array)
+            depth_array = depth_single[depth_single>lower]
+            # print(depth_array)
+            mode_real, _ = stats.mode(depth_array)
+            print(mode_real)
+            depth_diff = np.abs(depth_array - mode_real)
+            depth_array_inliers = depth_array[depth_diff<10]
+            # print(np.sort(depth_array)[:20])
+            mode = np.min(depth_array_inliers)
+            print(mode)
             # !!! Attention to the mode offset, it determines how much of the top surface area will be reserved
             depth_new = cv2.inRange(depth_single, lower, int(mode)+5)
             contours_new, _ = cv2.findContours(depth_new, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[-2:]
@@ -392,11 +430,11 @@ class Camera():
             self.block_detections.xyzs.append(block_xyz)
             self.block_detections.contours.append(contours_new_valid)
             self.block_detections.thetas.append(np.deg2rad(block_ori))
-            self.block_detections.colors.append(self.retrieve_area_color(self.ProcessVideoFrame, self.ProcessVideoFrameLab, contours_new_valid))
+            self.block_detections.colors.append(self.retrieve_area_color(self.ProcessVideoFrame, self.ProcessVideoFrameLab, self.ProcessVideoFrameHSV, contours_new_valid))
 
         self.block_detections.update(sort_key)
 
-    def retrieve_area_color(self, frame_rgb, frame_lab, contour):
+    def retrieve_area_color(self, frame_rgb, frame_lab, frame_hsv, contour):
         # RGB features
         mask_rgb = np.zeros(frame_rgb.shape[:2], dtype="uint8")
         cv2.drawContours(mask_rgb, [contour], -1, 255, cv2.FILLED)
@@ -409,15 +447,38 @@ class Camera():
         mean_lab = np.array(cv2.mean(frame_lab, mask=mask_lab)[:3], dtype=DTYPE)
         dist_lab = self.color_lab_mean - mean_lab
         # print(dist_lab.shape)
-        
-        dist = np.concatenate((dist_rgb, dist_lab), axis=1)
+
+        # HSV features
+        mask_hsv = np.zeros(frame_hsv.shape[:2], dtype="uint8")
+        cv2.drawContours(mask_hsv, [contour], -1, 255, cv2.FILLED)
+        mean_hsv = np.array(cv2.mean(frame_hsv, mask=mask_hsv)[:3], dtype=DTYPE)
+        dist_hsv = self.color_hsv_mean - mean_hsv
+
+        dist = np.concatenate((dist_rgb, dist_lab, dist_hsv), axis=1)
         # print(dist.shape)
         
         dist_norm = np.linalg.norm(dist, axis=1)
+        color_idx = np.argmin(dist_norm)
+
+        features = np.concatenate((mean_rgb, mean_lab, mean_hsv))
+        # print(features.shape)
+        data = features.tolist()
+
+        # print("COL", color_idx)
+        if self.model is not None:
+            pred = self.model.predict(features[None,:])
+            data.append(int(pred))
+            # print("SVM", int(pred))
+        else:
+            data.append(color_idx)
+
+        with open("data.csv", 'a') as file:
+            writer = csv.writer(file)
+            writer.writerow(data)
 
         # * Let's directly return color index for easy sorting
-        # return self.color_id[np.argmin(dist_norm)]
-        return np.argmin(dist_norm)
+        # return color_idx
+        return int(pred)
 
     def coord_pixel_to_world(self, u, v, z):
         index = np.array([u, v, 1]).reshape((3,1))
@@ -537,6 +598,7 @@ class VideoThread(QThread):
             if self.camera.colorReceived and self.camera.depthReceived:
                 self.camera.ProcessVideoFrame = self.camera.VideoFrame.copy()
                 self.camera.ProcessVideoFrameLab = cv2.cvtColor(self.camera.ProcessVideoFrame, cv2.COLOR_RGB2LAB)
+                self.camera.ProcessVideoFrameHSV = cv2.cvtColor(self.camera.ProcessVideoFrame, cv2.COLOR_RGB2HSV)
                 if self.camera.homography is not None:
                     self.camera.ProcessDepthFrameRaw = cv2.warpPerspective(self.camera.DepthFrameRaw.copy(), self.camera.homography, (1280, 720))
                 else:
