@@ -274,7 +274,7 @@ def IK_geometric(pose, block_ori=None, dh_params=None, m_matrix=None, s_list=Non
     # print('Tgt Pose: {} '.format(pose))
     # print('FK Pose:  {}'.format(fk_pose))
 
-    if theta1 > np.pi or theta1 < -np.pi:
+    if theta1 >= np.pi or theta1 <= -np.pi:
         return False, [0, 0, 0, 0, 0]
 
     if theta2 >= np.deg2rad(113) or theta2 <= -np.deg2rad(108):
@@ -286,7 +286,7 @@ def IK_geometric(pose, block_ori=None, dh_params=None, m_matrix=None, s_list=Non
     if theta4 >= np.deg2rad(123) or theta4 <= -np.deg2rad(100):
         return False, [0, 0, 0, 0, 0]
 
-    if theta5 >= np.pi or theta5 < -np.pi:
+    if theta5 >= np.pi or theta5 <= -np.pi:
         return False, [0, 0, 0, 0, 0]
 
 
