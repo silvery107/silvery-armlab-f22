@@ -156,10 +156,9 @@ class Camera():
         # self.model.to(self.device)
         # self.model.eval()
         self.model = None
-        with open('model.pkl', 'rb') as f:
+        with open('models/model.pkl', 'rb') as f:
             self.model = pickle.load(f)
         
-
         self.loadCameraCalibration("config/camera_calib.yaml")
 
     def processVideoFrame(self):
@@ -371,13 +370,21 @@ class Camera():
             mask_single = np.zeros_like(self.ProcessDepthFrameRaw, dtype=np.uint8)
             cv2.drawContours(mask_single, [contour], -1, 255, cv2.FILLED)
             depth_single = cv2.bitwise_and(self.ProcessDepthFrameRaw, self.ProcessDepthFrameRaw, mask=mask_single)
-            depth_array = depth_single[depth_single>lower]
-            # print(depth_array)
-            mode_real, _ = stats.mode(depth_array)
-            print(mode_real)
-            depth_diff = np.abs(depth_array - mode_real)
-            depth_array_inliers = depth_array[depth_diff<10]
-            # print(np.sort(depth_array)[:20])
+            depth_array = depth_single[depth_single>=lower]
+
+            # Stats mode range
+            # mode_real, _ = stats.mode(depth_array)
+            # print(mode_real)
+            # depth_diff = np.abs(depth_array - mode_real)
+            # depth_array_inliers = depth_array[depth_diff<10]
+
+            # Inter Quartile Range
+            Q1 = np.percentile(depth_array, 25, interpolation = 'midpoint')
+            Q3 = np.percentile(depth_array, 75, interpolation = 'midpoint')
+            IQR = Q3 - Q1
+            mode_lower = Q1 - 1.5 * IQR # outlier lower bound
+            depth_array_inliers = depth_array[depth_array>mode_lower]
+            
             mode = np.min(depth_array_inliers)
             print(mode)
             # !!! Attention to the mode offset, it determines how much of the top surface area will be reserved
@@ -441,6 +448,7 @@ class Camera():
         mean_rgb = np.array(cv2.mean(frame_rgb, mask=mask_rgb)[:3], dtype=DTYPE)
         dist_rgb = self.color_rgb_mean - mean_rgb
         # print(dist_rgb.shape)
+
         # LAB features
         mask_lab = np.zeros(frame_lab.shape[:2], dtype="uint8")
         cv2.drawContours(mask_lab, [contour], -1, 255, cv2.FILLED)
@@ -466,19 +474,21 @@ class Camera():
 
         # print("COL", color_idx)
         if self.model is not None:
-            pred = self.model.predict(features[None,:])
+            pred = self.model.predict(features[None, :])
             data.append(int(pred))
             # print("SVM", int(pred))
         else:
             data.append(color_idx)
 
-        with open("data.csv", 'a') as file:
+        with open("models/data.csv", 'a') as file:
             writer = csv.writer(file)
             writer.writerow(data)
 
         # * Let's directly return color index for easy sorting
-        # return color_idx
-        return int(pred)
+        if self.model is not None:
+            return int(pred)
+        else:
+            return color_idx
 
     def coord_pixel_to_world(self, u, v, z):
         index = np.array([u, v, 1]).reshape((3,1))
