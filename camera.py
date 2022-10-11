@@ -168,25 +168,25 @@ class Camera():
         """!
         @brief      Process a video frame
         """
-        # img_h, img_w = 720, 1280
-        # frac = 3.0 / 4.0
-        # blind_rectangle = None
-        # ignore = 3
-        # if ignore==1:
-        #     blind_rectangle = [(int(img_w/2), 0), (img_w, int(img_h*frac))]
-        # elif ignore==2:
-        #     blind_rectangle = [(0, 0), (int(img_w/2), int(img_h/3/2))]
-        # elif ignore==3:
-        #     blind_rectangle = [(0, int(img_h*frac)), (int(img_w/2), img_h)]
-        # elif ignore==4:
-        #     blind_rectangle = [(int(img_w/2), int(img_h*frac)), (img_w, img_h)]
-        # elif ignore==5: # negative half plane
-        #     blind_rectangle = [(0, int(img_h*frac)), (img_w, img_h)]
-        # cv2.rectangle(self.ProcessVideoFrame, blind_rectangle[0],blind_rectangle[1], (255, 0, 0), 2)
+        img_h, img_w = 720, 1280
+        frac = 3.0 / 4.0
+        blind_rectangle = None
+        ignore = 5
+        if ignore==1:
+            blind_rectangle = [(int(img_w/2), 0), (img_w, int(img_h*frac))]
+        elif ignore==2:
+            blind_rectangle = [(0, 0), (int(img_w/2), int(img_h/3/2))]
+        elif ignore==3:
+            blind_rectangle = [(0, int(img_h*frac)), (int(img_w/2), img_h)]
+        elif ignore==4:
+            blind_rectangle = [(int(img_w/2), int(img_h*frac)), (img_w, img_h)]
+        elif ignore==5: # negative half plane
+            blind_rectangle = [(225, int(img_h*frac)), (1083, 700)]
+        cv2.rectangle(self.ProcessVideoFrame, blind_rectangle[0],blind_rectangle[1], (255, 0, 0), 2)
 
 
-        cv2.rectangle(self.ProcessVideoFrame, (225, 90),(1090, 700), (255, 0, 0), 2)
-        cv2.rectangle(self.ProcessVideoFrame, (575, 400),(750, 700), (255, 0, 0), 2)
+        cv2.rectangle(self.ProcessVideoFrame, (225, 90), (1083, 700), (255, 0, 0), 2)
+        cv2.rectangle(self.ProcessVideoFrame, (570, 400), (735, 700), (255, 0, 0), 2)
         if self.block_detections.detected_num < 1:
             return
         for idx, (color, pixel, point, size, theta) in enumerate(zip(self.block_detections.colors, self.block_detections.uvds, self.block_detections.xyzs, self.block_detections.sizes, self.block_detections.thetas)):
@@ -333,8 +333,8 @@ class Camera():
         self.ProcessDepthFrameRaw = cv2.medianBlur(self.ProcessDepthFrameRaw, 3)
         mask = np.zeros_like(self.ProcessDepthFrameRaw, dtype=np.uint8)
         # !!! Attention to these rectangles's range
-        cv2.rectangle(mask, (225, 90), (1090, 700), 255, cv2.FILLED)
-        cv2.rectangle(mask, (575, 400), (750, 700), 0, cv2.FILLED)
+        cv2.rectangle(mask, (225, 90), (1083, 700), 255, cv2.FILLED)
+        cv2.rectangle(mask, (570, 400),(735, 700), 0, cv2.FILLED)
         if blind_rect is not None:
             cv2.rectangle(mask, blind_rect[0], blind_rect[1], 0, cv2.FILLED)
 
@@ -377,7 +377,7 @@ class Camera():
 
             # Stats mode range
             mode_real, _ = stats.mode(depth_array)
-            print("real mode", mode_real)
+            # print("real mode", mode_real)
             depth_diff = np.abs(depth_array - mode_real)
             depth_array_inliers = depth_array[depth_diff<10]
 
@@ -390,9 +390,10 @@ class Camera():
             # depth_array_inliers = depth_array[depth_array>=mode_lower]
             
             mode = np.min(depth_array_inliers)
-            print("result min", mode)
+            # mode = np.min(depth_array)
+            # print("result min", mode)
             # !!! Attention to the mode offset, it determines how much of the top surface area will be reserved
-            depth_new = cv2.inRange(depth_single, lower, int(mode)+3)
+            depth_new = cv2.inRange(depth_single, lower, int(mode)+5)
             contours_new, _ = cv2.findContours(depth_new, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[-2:]
             if not contours_new:
                 continue
@@ -429,13 +430,14 @@ class Camera():
             cx = int(M['m10']/M['m00'])
             cy = int(M['m01']/M['m00'])
             cz = self.ProcessDepthFrameRaw[cy, cx]
-            block_ori = cv2.minAreaRect(contours_new_valid)[2] # turn the range from [-90, 0) to (0, 90]
+            block_ori = - cv2.minAreaRect(contours_new_valid)[2] # turn the range from [-90, 0) to (0, 90]
+            # print(block_ori)
 
             block_xyz = self.coord_pixel_to_world(cx, cy, cz)
 
             # !!! size classification: attention to this moment threshold
             if M["m00"] < 800:
-                block_xyz[2] = block_xyz[2] - 10
+                block_xyz[2] = block_xyz[2] - 12.5
                 self.block_detections.sizes.append(1) # 1 for small
             else:
                 block_xyz[2] = block_xyz[2] - 19
