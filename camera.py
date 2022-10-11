@@ -40,6 +40,7 @@ class BlockDetections():
         self.uvds = None
         self.xyzs = None
         self.all_contours = None
+        self.has_cluster = False
 
     def update(self, key="color"):
         self.contours = np.array(self.contours)
@@ -63,6 +64,7 @@ class BlockDetections():
         self.uvds = []
         self.xyzs = []
         self.all_contours = None
+        self.has_cluster = False
 
     def _sort_by_idx(self, indices, begin, end):
         self.contours[begin:end] = self.contours[begin:end][indices]
@@ -401,6 +403,10 @@ class Camera():
                 continue
             elif abs(M["m00"]) > 2000:
                 # TODO add seg model
+                print("Cluster detected with moment:", M["m00"])
+                self.block_detections.reset()
+                self.block_detections.all_contours = contours
+                self.block_detections.has_cluster = True
                 # # generate new mask for new valid contours
                 # mask_new_single = np.zeros_like(mask_single, dtype=np.uint8)
                 # cv2.drawContours(mask_new_single, [contours_new_valid], -1, 255, cv2.FILLED)
@@ -419,7 +425,7 @@ class Camera():
                 #     print("Your model really find something??!!")
                 #     print("model colors:{}".format(bins[1:]))
                 #     cv2.imwrite("data/treasures_%d.png" % (random()*1000), output_mask)
-                pass
+                # pass
             cx = int(M['m10']/M['m00'])
             cy = int(M['m01']/M['m00'])
             cz = self.ProcessDepthFrameRaw[cy, cx]
@@ -440,6 +446,8 @@ class Camera():
             self.block_detections.contours.append(contours_new_valid)
             self.block_detections.thetas.append(np.deg2rad(block_ori))
             self.block_detections.colors.append(self.retrieve_area_color(self.ProcessVideoFrame, self.ProcessVideoFrameLab, self.ProcessVideoFrameHSV, contours_new_valid))
+            if self.block_detections.has_cluster:
+                break
 
         self.block_detections.update(sort_key)
 

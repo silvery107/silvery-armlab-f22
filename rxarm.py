@@ -250,6 +250,7 @@ class RXArmThread(QThread):
         self.rxarm = rxarm
         rospy.Subscriber('/rx200/joint_states', JointState, self.callback)
         rospy.sleep(0.5)
+        # !!! TODO set PID here
 
     def callback(self, data):
         self.rxarm.position_fb = np.asarray(data.position)[0:5]
