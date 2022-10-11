@@ -362,7 +362,7 @@ class StateMachine():
 
         # linear distance between the gripper fingers [m]
         gripper_distance = self.rxarm.get_gripper_position()
-        print("[PICK] Gripper Dist: {:.4f}".format(gripper_distance))
+        print("[PICK] Gripper Dist: {:.6f}".format(gripper_distance))
         # TODO return pick fail according to gripper distance
         if gripper_distance <= 0.03:
             print("[PICK] Failed to grab the block!")
@@ -690,7 +690,7 @@ class StateMachine():
 
     def task_test(self):
         self.current_state = "task_test"
-        self.status_message = "This is the real autonomy!"
+        self.status_message = "This is the test"
         self.rxarm.go_to_sleep_pose(moving_time=2,
                                     accel_time=0.5,
                                     blocking=True)
@@ -699,59 +699,18 @@ class StateMachine():
             return
         self.detect(ignore=3)
         blocks = self.camera.block_detections
-        
-        target_color = 0
+
         stack_xyz = [-300, -100, -10]
         destack_xyz = [300, -100, -10]
-        rainbow_count = 0
-        ############ Real Test ##############
-        while blocks.detected_num>0:
-            stack_order = []
-            destack_order = []
-            for i in range(blocks.detected_num):
-                # Find blocks in rainbow color order to stack
-                if blocks.colors[i] == target_color:
-                    target_color = target_color + 1
-                    stack_order.append(i)
-                else:
-                    # Destack blocks more than 1 high
-                    for idx in range(blocks.detected_num):
-                        if blocks.xyzs[idx, 2] > 40 and stack_order.count(idx)<1:
-                            destack_order.append(idx)
-                    break
-            
-            if stack_order or destack_order:
-                # Execute auto stack according to stack_order
-                self.rxarm.go_to_home_pose(moving_time=2,
-                                            accel_time=0.5,
-                                            blocking=True)
-                print("stack", stack_order)
-                stack_xyz = self.auto_stack(blocks, stack_xyz, stack_order)
-                # Execute auto lineup according to destack_order
-                print("destack", destack_order)
-                destack_xyz = self.auto_lineup(blocks, destack_xyz, destack_order)
-                
-                self.rxarm.go_to_home_pose(moving_time=2,
-                                            accel_time=0.5,
-                                            blocking=True)
-                self.rxarm.go_to_sleep_pose(moving_time=2,
-                                            accel_time=0.5,
-                                            blocking=True)
-            else:
-                # No execution but look for next rainbow color
-                target_color  = target_color + 1
 
-            if target_color > 5:
-                target_color = 0
-                rainbow_count = rainbow_count + 1
-                stack_xyz[0] = - 200
-                stack_xyz[2] = -10
-                if rainbow_count == 2:
-                    break
-
-            self.detect(ignore=3) # ignore the left negtive half plane
-            blocks = self.camera.block_detections
-
+        joint_names = self.rxarm.joint_names
+        for name in joint_names:
+            pid = self.rxarm.get_joint_position_pid_params(name)
+            print(name, pid)
+            # PID gains are in arbitrary units between 0 and 16,383.  Default [kp,ki,kd] is [100,0,0]
+            self.rxarm.set_joint_position_pid_params(name, [100, 0, 0])
+        
+        
         ############ Simple Test ##############
         # Choose to test auto stack or auto lineup
         # self.auto_stack(blocks, stack_xyz)
