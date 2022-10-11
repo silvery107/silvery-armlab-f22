@@ -1333,6 +1333,20 @@ class StateMachine():
             blind_rectangle = [(0, 0), (img_w, int(img_h*frac))]
 
         self.camera.detectBlocksInDepthImage(blind_rect=blind_rectangle, sort_key=sort_key)
+        blocks = self.camera.block_detections
+        while blocks.has_cluster:
+            self.rxarm.go_to_home_pose(moving_time=2,
+                                        accel_time=0.5,
+                                        blocking=True)
+            self.auto_clean(blocks.xyzs[0])
+            self.rxarm.go_to_home_pose(moving_time=2,
+                                        accel_time=0.5,
+                                        blocking=True)
+            self.rxarm.go_to_sleep_pose(moving_time=2,
+                                        accel_time=0.5,
+                                        blocking=True)
+            self.camera.detectBlocksInDepthImage(blind_rect=blind_rectangle, sort_key=sort_key)
+            blocks = self.camera.block_detections
 
         self.next_state = "idel"
 
