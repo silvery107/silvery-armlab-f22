@@ -193,7 +193,7 @@ class Camera():
             cv2.putText(self.ProcessVideoFrame, self.size_id[size], (cx-30, cy+45), self.font, 0.5, (255,255,255), thickness=2)
             # cv2.putText(self.ProcessVideoFrame, "+", (cx-12, cy+8), self.font, 1, (0,0,0), thickness=2)
             # cv2.putText(self.ProcessVideoFrame, str(idx), (cx-30, cy+75), self.font, 1, (0,0,0), thickness=2)
-            # cv2.putText(self.ProcessVideoFrame, str(int(np.rad2deg(theta))), (cx, cy), self.font, 0.5, (255,255,255), thickness=1)
+            cv2.putText(self.ProcessVideoFrame, str(int(np.rad2deg(theta))), (cx, cy), self.font, 0.5, (255,255,255), thickness=1)
             # cv2.putText(self.ProcessVideoFrame, "%.0f"%(point[2]), (cx-20, cy+55), self.font, 0.5, (0,0,0), thickness=2)
 
         cv2.drawContours(self.ProcessVideoFrame, self.block_detections.all_contours, -1, (255, 0, 0), 1)
@@ -343,7 +343,7 @@ class Camera():
 
         self.block_detections.all_contours = contours
 
-        cv2.drawContours(self.ProcessVideoFrame, contours, -1, (255, 0, 0), 1)
+        # cv2.drawContours(self.ProcessVideoFrame, contours, -1, (255, 0, 0), 1)
 
         # depth_stuff = cv2.bitwise_and(self.ProcessDepthFrameRaw, self.ProcessDepthFrameRaw, mask=img_depth_thr)
         # d_array = depth_stuff[depth_stuff>0]
@@ -376,21 +376,21 @@ class Camera():
             # Stats mode range
             mode_real, _ = stats.mode(depth_array)
             print("real mode", mode_real)
-            # depth_diff = np.abs(depth_array - mode_real)
-            # depth_array_inliers = depth_array[depth_diff<10]
+            depth_diff = np.abs(depth_array - mode_real)
+            depth_array_inliers = depth_array[depth_diff<10]
 
             # Inter Quartile Range
-            Q1 = np.percentile(depth_array, 25, interpolation = 'midpoint')
-            Q3 = np.percentile(depth_array, 75, interpolation = 'midpoint')
-            IQR = Q3 - Q1
-            mode_lower = Q1 - 1.5 * IQR # outlier lower bound
-            print("IQR lower", mode_lower)
-            depth_array_inliers = depth_array[depth_array>=mode_lower]
+            # Q1 = np.percentile(depth_array, 25, interpolation = 'midpoint')
+            # Q3 = np.percentile(depth_array, 75, interpolation = 'midpoint')
+            # IQR = Q3 - Q1
+            # mode_lower = Q1 - 1.5 * IQR # outlier lower bound
+            # print("IQR lower", mode_lower)
+            # depth_array_inliers = depth_array[depth_array>=mode_lower]
             
             mode = np.min(depth_array_inliers)
             print("result min", mode)
             # !!! Attention to the mode offset, it determines how much of the top surface area will be reserved
-            depth_new = cv2.inRange(depth_single, lower, int(mode)+5)
+            depth_new = cv2.inRange(depth_single, lower, int(mode)+3)
             contours_new, _ = cv2.findContours(depth_new, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[-2:]
             if not contours_new:
                 continue
@@ -423,13 +423,13 @@ class Camera():
             cx = int(M['m10']/M['m00'])
             cy = int(M['m01']/M['m00'])
             cz = self.ProcessDepthFrameRaw[cy, cx]
-            block_ori = - cv2.minAreaRect(contours_new_valid)[2] # turn the range from [-90, 0) to (0, 90]
+            block_ori = cv2.minAreaRect(contours_new_valid)[2] # turn the range from [-90, 0) to (0, 90]
 
             block_xyz = self.coord_pixel_to_world(cx, cy, cz)
 
             # !!! size classification: attention to this moment threshold
             if M["m00"] < 800:
-                block_xyz[2] = block_xyz[2] - 12.5
+                block_xyz[2] = block_xyz[2] - 10
                 self.block_detections.sizes.append(1) # 1 for small
             else:
                 block_xyz[2] = block_xyz[2] - 19
