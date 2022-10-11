@@ -253,9 +253,9 @@ def IK_geometric(pose, block_ori=None, dh_params=None, m_matrix=None, s_list=Non
     else:
         if phi > np.pi/4.0:
             theta5 = theta1 - block_ori
-            while theta5 > np.pi/3.0:
+            while theta5 > np.pi/4.0:
                 theta5 = theta5 - np.pi/2.0
-            while theta5 < - np.pi/3.0:
+            while theta5 < - np.pi/4.0:
                 theta5 = theta5 + np.pi/2.0
             # Additional rotation to enforce longitudinal pick
             if theta5 > 0:
