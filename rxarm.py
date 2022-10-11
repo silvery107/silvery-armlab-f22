@@ -250,7 +250,19 @@ class RXArmThread(QThread):
         self.rxarm = rxarm
         rospy.Subscriber('/rx200/joint_states', JointState, self.callback)
         rospy.sleep(0.5)
-        # !!! TODO set PID here
+        joint_names = self.rxarm.joint_names
+        pids = []
+        for name in joint_names:
+            pid = self.rxarm.get_joint_position_pid_params(name)
+            pids.append(pid)
+            print(name, pid)
+            
+        pids = np.asarray(pids)
+        pids[:-1, 0] = 1200
+        # pids[:-1, 2] = 3000
+        print(pids)
+        for idx, name in enumerate(joint_names):
+            self.rxarm.set_joint_position_pid_params(name, pids[idx, :])
 
     def callback(self, data):
         self.rxarm.position_fb = np.asarray(data.position)[0:5]
