@@ -565,7 +565,7 @@ class StateMachine():
         print("[CLEAN] Planning waypoints...")
         clean_height_offset = 15 + 19
         clean_wrist_offset = np.pi/18.0/2.0
-        target_world_pos[2] = target_world_pos[2] + clean_height_offset
+        target_world_pos[2] = 5 + clean_height_offset
 
         reachable_low = False
 
