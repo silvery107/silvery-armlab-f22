@@ -378,16 +378,16 @@ class Camera():
             # Stats mode range
             mode_real, _ = stats.mode(depth_array)
             print("real mode", mode_real)
-            # depth_diff = np.abs(depth_array - mode_real)
-            # depth_array_inliers = depth_array[depth_diff<10]
+            depth_diff = np.abs(depth_array - mode_real)
+            depth_array_inliers = depth_array[depth_diff<10]
 
             # Inter Quartile Range
-            Q1 = np.percentile(depth_array, 25, interpolation = 'midpoint')
-            Q3 = np.percentile(depth_array, 75, interpolation = 'midpoint')
-            IQR = Q3 - Q1
-            mode_lower = Q1 - 1.5 * IQR # outlier lower bound
-            print("IQR lower", mode_lower)
-            depth_array_inliers = depth_array[depth_array>=mode_lower]
+            # Q1 = np.percentile(depth_array, 25, interpolation = 'midpoint')
+            # Q3 = np.percentile(depth_array, 75, interpolation = 'midpoint')
+            # IQR = Q3 - Q1
+            # mode_lower = Q1 - 1.5 * IQR # outlier lower bound
+            # print("IQR lower", mode_lower)
+            # depth_array_inliers = depth_array[depth_array>=mode_lower]
             
             mode = np.min(depth_array_inliers)
             print("result min", mode)
@@ -429,7 +429,7 @@ class Camera():
             cx = int(M['m10']/M['m00'])
             cy = int(M['m01']/M['m00'])
             cz = self.ProcessDepthFrameRaw[cy, cx]
-            block_ori = - cv2.minAreaRect(contours_new_valid)[2] # turn the range from [-90, 0) to (0, 90]
+            block_ori = cv2.minAreaRect(contours_new_valid)[2] # turn the range from [-90, 0) to (0, 90]
 
             block_xyz = self.coord_pixel_to_world(cx, cy, cz)
 
