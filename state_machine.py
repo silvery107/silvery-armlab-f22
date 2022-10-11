@@ -362,9 +362,9 @@ class StateMachine():
 
         # linear distance between the gripper fingers [m]
         gripper_distance = self.rxarm.get_gripper_position()
-        print("[PICK] Gripper Dist: {:.4f}".format(gripper_distance))
+        print("[PICK] Gripper Dist: {:.8f}".format(gripper_distance))
         # TODO return pick fail according to gripper distance
-        if gripper_distance <= 0.03:
+        if gripper_distance <= 0.0300000:
             print("[PICK] Failed to grab the block!")
             return False, pick_stable
         else:
@@ -494,6 +494,8 @@ class StateMachine():
         print("initial: ", current_effort)
         temp_joint = np.array(joint_angles_1)
         for i in range(10):
+            # current_effort = self.rxarm.get_efforts()
+            # print("initial: ", current_effort)
             displacement_unit = displacement_unit / 2
             temp_joint = temp_joint + displacement_unit
             move_time, ac_time = self.calMoveTime(temp_joint)
@@ -502,15 +504,16 @@ class StateMachine():
                                             accel_time=ac_time,
                                             blocking=True)
             rospy.sleep(0.1)
-            effort = self.rxarm.get_efforts()
-            print(effort)
-            # effort_diff = (effort[1] - current_effort[1])
-            # if effort[1] > -150:
-            #     break
-            effort_diff = (effort - current_effort)[1:3]
-            print("effort norm:", np.linalg.norm(effort_diff))
-            if np.linalg.norm(effort_diff) > 250 and effort[1] > current_effort[1]:
-                break
+            if i > 0:
+                effort = self.rxarm.get_efforts()
+                print(effort)
+                # effort_diff = (effort[1] - current_effort[1])
+                # if effort[1] > -150:
+                #     break
+                effort_diff = (effort - current_effort)[1:3]
+                print("effort norm:", np.linalg.norm(effort_diff))
+                if np.linalg.norm(effort_diff) > 100 and effort[1] > current_effort[1]:
+                    break
 
         self.rxarm.open_gripper()
         self.rxarm.gripper_state = False
