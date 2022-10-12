@@ -88,6 +88,8 @@ class RXArm(InterbotixRobot):
         if (pox_config_file is not None):
             self.M_matrix, self.S_list = self.parse_pox_param_file(pox_config_file)
 
+        self.safe_pose = [0, -np.pi/3, 0, -np.pi/2, 0]
+
     def initialize(self):
         """!
         @brief      Initializes the RXArm from given configuration file.
@@ -130,6 +132,9 @@ class RXArm(InterbotixRobot):
                               accel_time=self.accel_time,
                               blocking=False)
         self.initialized = False
+    
+    def go_to_safe_pose(self, moving_time, accel_time, blocking):
+        self.set_joint_positions(self.safe_pose, moving_time, accel_time, blocking)
 
     def set_positions(self, joint_positions):
         """!
