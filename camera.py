@@ -378,7 +378,7 @@ class Camera():
             # Stats mode range
             mode_real, _ = stats.mode(depth_array)
             # print("real mode", mode_real)
-            depth_diff = np.abs(depth_array - mode_real)
+            depth_diff =  mode_real - depth_array
             depth_array_inliers = depth_array[depth_diff<10]
 
             # Inter Quartile Range
