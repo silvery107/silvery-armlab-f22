@@ -220,7 +220,7 @@ class StateMachine():
         move_time = np.max(angular_t)
         if move_time < 0.4:
             move_time = 0.4
-        ac_time = move_time / 4.0
+        ac_time = move_time / 3.5
         return move_time, ac_time
 
     def pick(self):
@@ -245,17 +245,22 @@ class StateMachine():
         if not self.next_state == "estop":
             self.next_state = "idle"
 
-    def auto_pick(self, _target_world_pos, block_ori):
+    def auto_pick(self, _target_world_pos, block_ori, double_check=False):
         target_world_pos = deepcopy(_target_world_pos)
         above_world_pos = deepcopy(_target_world_pos)
-
+        print("!!!!!!!!!!!!!!!!!!!!!!!!!!! pick pos:", target_world_pos)
+        xy_norm = np.linalg.norm(target_world_pos[:2])
+        print(xy_norm)
+        if xy_norm >= 315 and xy_norm<=430:
+            target_world_pos[2] = target_world_pos[2] + 1/55 * xy_norm
+            print(1/50 * xy_norm)
         ############ Planning #############
         print("[PICK] Planning waypoints...")
         pick_stable = True
-        pick_height_offset = 10 + 19
-        pick_wrist_offset = np.pi/18.0/3.0
+        pick_height_offset = 10 + 19 # + 5
+        pick_wrist_offset = 0 # np.pi/18.0/3.0
         target_world_pos[2] = target_world_pos[2] + pick_height_offset
-        above_world_pos[2] = target_world_pos[2] + pick_height_offset + 80
+        above_world_pos[2] = above_world_pos[2] + pick_height_offset + 80
 
         reachable_low, reachable_high = False, False
 
@@ -292,8 +297,18 @@ class StateMachine():
         # add horizontal reach by detecting distance between the projection of arm and the target point
         if self.check_path_clean(target_world_pos):
             # Try horizontal reach with phi = 0.0
+            target_world_pos = deepcopy(_target_world_pos)
+            above_world_pos = deepcopy(_target_world_pos)
+            target_world_pos[2] = target_world_pos[2] + 5 + 19
+            target_world_pos[0] = target_world_pos[0] * 0.97
+            target_world_pos[1] = target_world_pos[1] * 0.97
+
+            above_world_pos[2] = above_world_pos[2] + 5 + 80
+            above_world_pos[0] = above_world_pos[0] * 0.97
+            above_world_pos[1] = above_world_pos[1] * 0.97
             if not reachable_high or not reachable_low:
                 pick_stable = False
+                double_check = False
                 reachable_low, joint_angles_2 = IK_geometric([target_world_pos[0], 
                                                             target_world_pos[1], 
                                                             target_world_pos[2], 
@@ -324,7 +339,8 @@ class StateMachine():
 
         move_time, ac_time = self.calMoveTime(joint_angles_start)
         self.rxarm.set_single_joint_position("waist", joint_angles_1[0], moving_time=move_time, accel_time=ac_time, blocking=True)
-
+        
+        joint_angles_1[-2] = joint_angles_1[-2] + pick_wrist_offset
         move_time, ac_time = self.calMoveTime(joint_angles_1)
         self.rxarm.set_joint_positions(joint_angles_1,
                                         moving_time=move_time,
@@ -340,6 +356,20 @@ class StateMachine():
                                         blocking=True)
         self.rxarm.close_gripper()
         self.rxarm.gripper_state = False
+
+        if double_check:
+            self.rxarm.open_gripper()
+            self.rxarm.gripper_state = True
+            self.rxarm.set_ee_cartesian_trajectory(z=0.04, moving_time=0.5, wp_moving_time=0.1)
+            self.rxarm.set_single_joint_position("wrist_rotate", joint_angles_2[-1] + np.pi/2, moving_time=0.3, accel_time=0.14)
+            joint_angles_2[-1] = joint_angles_2[-1] + np.pi/2
+            self.rxarm.set_joint_positions(joint_angles_2,
+                                            moving_time=move_time,
+                                            accel_time=ac_time,
+                                            blocking=True)
+            self.rxarm.close_gripper()
+            self.rxarm.gripper_state = False
+
         
         # 4. raise to the point above the target point
         move_time, ac_time = self.calMoveTime(joint_angles_1)
@@ -364,12 +394,12 @@ class StateMachine():
         gripper_distance = self.rxarm.get_gripper_position()
         print("[PICK] Gripper Dist: {:.8f}".format(gripper_distance))
         # TODO return pick fail according to gripper distance
-        if gripper_distance <= 0.0300000:
-            print("[PICK] Failed to grab the block!")
-            return False, pick_stable
-        else:
-            print("[PICK] Pick finished!")
-            return True, pick_stable
+        # if gripper_distance <= 0.0300000:
+        #     print("[PICK] Failed to grab the block!")
+        #     return False, pick_stable
+        # else:
+        print("[PICK] Pick finished!")
+        return True, pick_stable
 
     def place(self):
         self.status_message = "State: Place - Click to place"
@@ -390,16 +420,19 @@ class StateMachine():
         if not self.next_state == "estop":
             self.next_state = "idle"
 
-    def auto_place(self, _target_world_pos, block_ori=None, phi=np.pi/2):
+    def auto_place(self, _target_world_pos, block_ori=None, phi=np.pi/2, place_near=False):
         target_world_pos = deepcopy(_target_world_pos)
         above_world_pos = deepcopy(_target_world_pos)
+        if place_near:
+            target_world_pos = [0, 175, 0]
+            above_world_pos = [0, 175, 0]
 
         ############ Planning #############
         print("[PLACE]  Planning waypoints...")
         place_height_offset = 33
-        place_wrist_offset = np.pi/18.0/2.0
+        place_wrist_offset = np.pi/18.0/3.0
         target_world_pos[2] = target_world_pos[2] + place_height_offset
-        above_world_pos[2] = target_world_pos[2] + place_height_offset + 80
+        above_world_pos[2] = above_world_pos[2] + place_height_offset + 80
 
         reachable_low, reachable_high = False, False
 
@@ -426,16 +459,26 @@ class StateMachine():
                     break
                 if above_world_pos[2] - target_world_pos[2] > 40:
                     above_world_pos[2] = above_world_pos[2] - 10
-                else:
+                elif _target_world_pos[2] < 38*4+10:
                     if 0.98* math.sqrt(above_world_pos[0] * above_world_pos[0] + above_world_pos[1] * above_world_pos[1]) > 158.875:
                         above_world_pos[0] = above_world_pos[0] * 0.98
                         above_world_pos[1] = above_world_pos[1] * 0.98
                     phi = phi - np.pi/18.0
+                else:
+                    break
+
                 if phi <= 0:
                     break
 
         # Try horizontal reach with phi = 0.0
         if not reachable_high or not reachable_low:
+            target_world_pos = deepcopy(_target_world_pos)
+            above_world_pos = deepcopy(_target_world_pos)
+            if _target_world_pos[2] >= 38*4+10:
+                target_world_pos[1] = target_world_pos[1] - 15
+                above_world_pos[1] = above_world_pos[1] - 15
+            target_world_pos[2] = target_world_pos[2] + 12
+            above_world_pos[2] = above_world_pos[2] + 12 + 80
             reachable_low, joint_angles_2 = IK_geometric([target_world_pos[0], 
                                                         target_world_pos[1],
                                                         target_world_pos[2],
@@ -451,9 +494,9 @@ class StateMachine():
                                                             block_ori=block_ori,
                                                             m_matrix=self.rxarm.M_matrix,
                                                             s_list=self.rxarm.S_list)
-                if 0.95* math.sqrt(above_world_pos[0] * above_world_pos[0] + above_world_pos[1] * above_world_pos[1]) > 158.875:
-                        above_world_pos[0] = above_world_pos[0] * 0.95
-                        above_world_pos[1] = above_world_pos[1] * 0.95
+                # if 0.95* math.sqrt(above_world_pos[0] * above_world_pos[0] + above_world_pos[1] * above_world_pos[1]) > 158.875:
+                #         above_world_pos[0] = above_world_pos[0] * 0.95
+                #         above_world_pos[1] = above_world_pos[1] * 0.95
                 if reachable_high:
                     break
                 if above_world_pos[2] - target_world_pos[2] > 40:
@@ -470,8 +513,10 @@ class StateMachine():
 
         ############ Executing #############
         print("[PLACE]  Executing waypoints...")
-
+        # !!! TODO
         joint_angles_start = self.rxarm.get_positions()
+        if _target_world_pos[2] < 38*4+10:
+            joint_angles_start = self.rxarm.safe_pos
 
         move_time = np.abs(joint_angles_1[0] - joint_angles_start[0]) / (np.pi/3)
         ac_time = move_time / 4
@@ -479,6 +524,7 @@ class StateMachine():
         self.rxarm.set_single_joint_position("waist", joint_angles_1[0], moving_time=move_time, accel_time=ac_time, blocking=True)
 
         # 1. go to point above target pose
+        joint_angles_1[-2] = joint_angles_1[-2] + place_wrist_offset
         move_time, ac_time = self.calMoveTime(joint_angles_1)
         self.rxarm.set_joint_positions(joint_angles_1,
                                         moving_time=move_time,
@@ -512,7 +558,9 @@ class StateMachine():
                 #     break
                 effort_diff = (effort - current_effort)[1:3]
                 print("effort norm:", np.linalg.norm(effort_diff))
-                if np.linalg.norm(effort_diff) > 100 and effort[1] > current_effort[1]:
+                if np.linalg.norm(effort_diff) > 100:
+                    break
+                if place_near:
                     break
 
         self.rxarm.open_gripper()
@@ -529,6 +577,8 @@ class StateMachine():
         joint_angles_end[2] = 0
         joint_angles_end[3] = -np.pi/2
         joint_angles_end[4] = 0
+        if _target_world_pos[2] >= 38*4+10:
+            joint_angles_end[1] = -np.pi/3
 
         move_time, ac_time = self.calMoveTime(joint_angles_end)
         self.rxarm.set_joint_positions(joint_angles_end,
@@ -568,7 +618,7 @@ class StateMachine():
         print("[CLEAN] Planning waypoints...")
         clean_height_offset = 15 + 19
         clean_wrist_offset = np.pi/18.0/2.0
-        target_world_pos[2] = 5 + clean_height_offset
+        target_world_pos[2] = 15 + clean_height_offset
 
         reachable_low = False
 
@@ -624,15 +674,16 @@ class StateMachine():
         joint_angles_2[-2] = joint_angles_2[-2] + clean_wrist_offset
         # move_time, ac_time = self.calMoveTime(joint_angles_2)
         self.rxarm.set_joint_positions(joint_angles_2,
-                                        moving_time=1,
-                                        accel_time=1/4,
+                                        moving_time=0.8,
+                                        accel_time=0.39,
                                         blocking=True)
+        
         
         # 4. go to the end clean pose
         move_time, ac_time = self.calMoveTime(joint_angles_3)
         self.rxarm.set_joint_positions(joint_angles_3,
-                                        moving_time=1,
-                                        accel_time=1/4,
+                                        moving_time=0.8,
+                                        accel_time=0.39,
                                         blocking=True)
 
         # 5. raise to the theta2 = -pi/4 and theta4 = pi/4
@@ -705,25 +756,35 @@ class StateMachine():
 
         stack_xyz = [-300, -100, -10]
         destack_xyz = [300, -100, -10]
-
-        joint_names = self.rxarm.joint_names
-        for name in joint_names:
-            pid = self.rxarm.get_joint_position_pid_params(name)
-            print(name, pid)
-            # PID gains are in arbitrary units between 0 and 16,383.  Default [kp,ki,kd] is [100,0,0]
-            self.rxarm.set_joint_position_pid_params(name, [100, 0, 0])
-        
+        self.rxarm.go_to_home_pose(moving_time=2,
+                                    accel_time=0.5,
+                                    blocking=True)
+        # self.auto_pick(blocks.xyzs[0], blocks.thetas[0], double_check=True)
+        # joint_names = self.rxarm.joint_names
+        # pids = []
+        # for name in joint_names:
+        #     pid = self.rxarm.get_joint_position_pid_params(name)
+        #     pids.append(pid)
+        #     print(name, pid)
+        #     # PID gains are in arbitrary units between 0 and 16,383.  Default [kp,ki,kd] is [100,0,0]
+        #     # self.rxarm.set_joint_position_pid_params(name, [100, 0, 0])
+        # pids = np.asarray(pids)
+        # pids[:, 0] = 1000
+        # print(pids)
+        # for idx, name in enumerate(joint_names):
+        #     self.rxarm.set_joint_position_pid_params(name, pids[idx, :])
         
         ############ Simple Test ##############
         # Choose to test auto stack or auto lineup
         # self.auto_stack(blocks, stack_xyz)
         # self.auto_lineup(blocks, destack_xyz)
-        self.rxarm.go_to_home_pose(moving_time=2,
-                                    accel_time=0.5,
-                                    blocking=True)
-        self.rxarm.go_to_sleep_pose(moving_time=2,
-                                    accel_time=0.5,
-                                    blocking=True)
+        self.rxarm.set_joint_positions(self.safe_pos, moving_time=2, accel_time=0.5, blocking=True)
+        # self.rxarm.go_to_home_pose(moving_time=2,
+        #                             accel_time=0.5,
+        #                             blocking=True)
+        # self.rxarm.go_to_sleep_pose(moving_time=2,
+        #                             accel_time=0.5,
+        #                             blocking=True)
         print("Test Finished!!!")
         if not self.next_state == "estop":
             self.next_state = "idle"
@@ -732,7 +793,7 @@ class StateMachine():
         self.current_state = "task1"
         self.status_message = "Start task1!"
 
-        self.rxarm.go_to_sleep_pose(moving_time=2,
+        self.rxarm.go_to_safe_pose(moving_time=2,
                                     accel_time=0.5,
                                     blocking=True)
         if not self.calibrate():
@@ -741,9 +802,9 @@ class StateMachine():
         self.detect(ignore=5, sort_key="distance")
         blocks = self.camera.block_detections
 
-        self.rxarm.go_to_home_pose(moving_time=2,
-                                    accel_time=0.5,
-                                    blocking=True)
+        # self.rxarm.go_to_home_pose(moving_time=2,
+        #                             accel_time=0.5,
+        #                             blocking=True)
         large_xyz = [400, -100, -10]
         small_xyz = [-400, -100, -15]
         while blocks.detected_num > 0:
@@ -752,42 +813,44 @@ class StateMachine():
             ori = blocks.thetas[0]
             pick_sucess, pick_stable = self.auto_pick(block_xyz, ori)
             if not pick_sucess:
-                self.rxarm.go_to_home_pose(moving_time=2,
+                self.rxarm.go_to_safe_pose(moving_time=2,
                                     accel_time=0.5,
                                     blocking=True)
-                self.rxarm.go_to_sleep_pose(moving_time=2,
-                                            accel_time=0.5,
-                                            blocking=True)
+                # self.rxarm.go_to_home_pose(moving_time=2,
+                #                     accel_time=0.5,
+                #                     blocking=True)
+                # self.rxarm.go_to_sleep_pose(moving_time=2,
+                #                             accel_time=0.5,
+                #                             blocking=True)
             else:
                 if sz == 0:
                     print("Place large block to ", large_xyz)
                     if pick_stable:
                         self.auto_place(large_xyz)
+                        large_xyz[0] = large_xyz[0] - 50
+                        if large_xyz[0] < 150:
+                            large_xyz[0] = 350
+                            large_xyz[1] = -50
                     else:
-                        self.auto_place(large_xyz, phi = 0)
-                    large_xyz[0] = large_xyz[0] - 50
-                    if large_xyz[0] < 150:
-                        large_xyz[0] = 350
-                        large_xyz[1] = -50
+                        self.auto_place(large_xyz, place_near=True)
+                        self.rxarm.go_to_safe_pose(moving_time=1, accel_time=0.5, blocking=True)
                 else:
                     print("Place small block to ", small_xyz)
                     if pick_stable:
                         self.auto_place(small_xyz)
+                        small_xyz[0] = small_xyz[0] + 50
+                        if small_xyz[0] > -150:
+                            small_xyz[0] = -350
+                            small_xyz[1] = -50
                     else:
-                        self.auto_place(small_xyz, phi = 0)
-                    small_xyz[0] = small_xyz[0] + 50
-                    if small_xyz[0] > -150:
-                        small_xyz[0] = -350
-                        small_xyz[1] = -50
+                        self.auto_place(small_xyz, place_near=True)
+                        self.rxarm.go_to_safe_pose(moving_time=1, accel_time=0.5, blocking=True)
 
             self.detect(ignore=5, sort_key="distance")
         
-        self.rxarm.go_to_home_pose(moving_time=2,
-                                    accel_time=0.5,
-                                    blocking=True)
-        self.rxarm.go_to_sleep_pose(moving_time=2,
-                                    accel_time=0.5,
-                                    blocking=True)
+        self.rxarm.go_to_safe_pose(moving_time=2,
+                            accel_time=0.5,
+                            blocking=True)
 
         if not self.next_state == "estop":
             self.next_state = "idle"
@@ -797,7 +860,7 @@ class StateMachine():
         self.current_state = "task2"
         self.status_message = "Start task2!"
 
-        self.rxarm.go_to_sleep_pose(moving_time=2,
+        self.rxarm.go_to_safe_pose(moving_time=2,
                                     accel_time=0.5,
                                     blocking=True)
         if not self.calibrate():
@@ -806,9 +869,9 @@ class StateMachine():
         self.detect(ignore=5, sort_key="distance")
         blocks = self.camera.block_detections
 
-        self.rxarm.go_to_home_pose(moving_time=2,
-                                    accel_time=0.5,
-                                    blocking=True)
+        # self.rxarm.go_to_home_pose(moving_time=2,
+        #                             accel_time=0.5,
+        #                             blocking=True)
         stack_xyz = [-350, -100, -10]
         small_xyz = [350, -100, -15]
         stack_num = 0
@@ -816,84 +879,100 @@ class StateMachine():
             block_xyz = blocks.xyzs[0]
             sz = blocks.sizes[0]
             ori = blocks.thetas[0]
-            pick_sucess, pick_stable = self.auto_pick(block_xyz, ori)
+            pick_sucess, pick_stable = self.auto_pick(block_xyz, ori, double_check=True)
             if not pick_sucess:
-                self.rxarm.go_to_home_pose(moving_time=2,
+                self.rxarm.go_to_safe_pose(moving_time=2,
                                     accel_time=0.5,
                                     blocking=True)
-                self.rxarm.go_to_sleep_pose(moving_time=2,
-                                            accel_time=0.5,
-                                            blocking=True)
+                # self.rxarm.go_to_home_pose(moving_time=2,
+                #                     accel_time=0.5,
+                #                     blocking=True)
+                # self.rxarm.go_to_sleep_pose(moving_time=2,
+                #                             accel_time=0.5,
+                #                             blocking=True)
             else:
                 if sz == 0:
                     print("Place large block to ", stack_xyz)
                     if pick_stable:
                         self.auto_place(stack_xyz)
+                        stack_xyz[2] = stack_xyz[2] + 38
+                        stack_num = stack_num + 1
+                        if stack_num >= 3:
+                            stack_xyz[0] = stack_xyz[0] + 100
+                            stack_xyz[2] = -10
+                            stack_num = 0
                     else:
-                        self.auto_place(stack_xyz, phi=0)
-                    stack_xyz[2] = stack_xyz[2] + 38
+                        self.auto_place(stack_xyz, place_near=True)
+                        self.rxarm.go_to_safe_pose(moving_time=1, accel_time=0.5, blocking=True)
+                else:
+                    print("Place small block to ", small_xyz)
+                    if pick_stable:
+                        self.auto_place(small_xyz)
+                        small_xyz[0] = small_xyz[0] - 75
+                        if small_xyz[0] < 125:
+                            small_xyz[0] = 350
+                            small_xyz[1] = -50
+                    else:
+                        self.auto_place(small_xyz, place_near=True)
+                        self.rxarm.go_to_safe_pose(moving_time=1, accel_time=0.5, blocking=True)
+
+            self.detect(ignore=5, sort_key="distance")
+
+        self.rxarm.go_to_safe_pose(moving_time=2,
+                            accel_time=0.5,
+                            blocking=True)
+        # self.rxarm.go_to_home_pose(moving_time=2,
+        #                             accel_time=0.5,
+        #                             blocking=True)
+        # self.rxarm.go_to_sleep_pose(moving_time=2,
+        #                             accel_time=0.5,
+        #                             blocking=True)
+        self.detect(ignore=3, sort_key="distance")
+        self.rxarm.go_to_safe_pose(moving_time=2,
+                            accel_time=0.5,
+                            blocking=True)
+        # self.rxarm.go_to_home_pose(moving_time=2,
+        #                             accel_time=0.5,
+        #                             blocking=True)
+
+        stack_xyz[2] = stack_xyz[2] - 5
+        while blocks.detected_num > 0:
+            block_xyz = blocks.xyzs[0]
+            ori = blocks.thetas[0]
+            pick_sucess, pick_stable = self.auto_pick(block_xyz, ori, double_check=True)
+            if not pick_sucess:
+                self.rxarm.go_to_safe_pose(moving_time=2,
+                                    accel_time=0.5,
+                                    blocking=True)
+                # self.rxarm.go_to_home_pose(moving_time=2,
+                #                     accel_time=0.5,
+                #                     blocking=True)
+                # self.rxarm.go_to_sleep_pose(moving_time=2,
+                #                             accel_time=0.5,
+                #                             blocking=True)
+            else:
+                print("Place large block to ", stack_xyz)
+                if pick_stable:
+                    self.auto_place(stack_xyz)
+                    stack_xyz[2] = stack_xyz[2] + 25
                     stack_num = stack_num + 1
                     if stack_num >= 3:
                         stack_xyz[0] = stack_xyz[0] + 100
                         stack_xyz[2] = -10
                         stack_num = 0
                 else:
-                    print("Place small block to ", small_xyz)
-                    if pick_stable:
-                        self.auto_place(small_xyz)
-                    else:
-                        self.auto_place(small_xyz, phi=0)
-                    small_xyz[0] = small_xyz[0] - 75
-                    if small_xyz[0] < 125:
-                        small_xyz[0] = 350
-                        small_xyz[1] = -50
-
-            self.detect(ignore=5, sort_key="distance")
-
-        self.rxarm.go_to_home_pose(moving_time=2,
-                                    accel_time=0.5,
-                                    blocking=True)
-        self.rxarm.go_to_sleep_pose(moving_time=2,
-                                    accel_time=0.5,
-                                    blocking=True)
-        self.detect(ignore=3, sort_key="distance")
-        self.rxarm.go_to_home_pose(moving_time=2,
-                                    accel_time=0.5,
-                                    blocking=True)
-
-        stack_xyz[2] = stack_xyz[2] - 5
-        while blocks.detected_num > 0:
-            block_xyz = blocks.xyzs[0]
-            ori = blocks.thetas[0]
-            pick_sucess, pick_stable = self.auto_pick(block_xyz, ori)
-            if not pick_sucess:
-                self.rxarm.go_to_home_pose(moving_time=2,
-                                    accel_time=0.5,
-                                    blocking=True)
-                self.rxarm.go_to_sleep_pose(moving_time=2,
-                                            accel_time=0.5,
-                                            blocking=True)
-            else:
-                print("Place large block to ", stack_xyz)
-                if pick_stable:
-                    self.auto_place(stack_xyz)
-                else:
-                    self.auto_place(stack_xyz, phi=0)
-                stack_xyz[2] = stack_xyz[2] + 25
-                stack_num = stack_num + 1
-                if stack_num >= 3:
-                    stack_xyz[0] = stack_xyz[0] + 100
-                    stack_xyz[2] = -10
-                    stack_num = 0
+                    self.auto_place(stack_xyz, place_near=True)
+                    self.rxarm.go_to_safe_pose(moving_time=1, accel_time=0.5, blocking=True)
 
             self.detect(ignore=3, sort_key="distance")
         
-        self.rxarm.go_to_home_pose(moving_time=2,
-                                    accel_time=0.5,
-                                    blocking=True)
-        self.rxarm.go_to_sleep_pose(moving_time=2,
-                                    accel_time=0.5,
-                                    blocking=True)
+        self.rxarm.go_to_safe_pose(moving_time=2, accel_time=0.5, blocking=True)
+        # self.rxarm.go_to_home_pose(moving_time=2,
+        #                             accel_time=0.5,
+        #                             blocking=True)
+        # self.rxarm.go_to_sleep_pose(moving_time=2,
+        #                             accel_time=0.5,
+        #                             blocking=True)
 
         if not self.next_state == "estop":
             self.next_state = "idle"
@@ -902,7 +981,7 @@ class StateMachine():
         self.current_state = "task3"
         self.status_message = "Start task3!"
 
-        self.rxarm.go_to_sleep_pose(moving_time=2,
+        self.rxarm.go_to_safe_pose(moving_time=2,
                                     accel_time=0.5,
                                     blocking=True)
         if not self.calibrate():
@@ -911,9 +990,6 @@ class StateMachine():
         self.detect(ignore=5, sort_key="distance")
         blocks = self.camera.block_detections
 
-        self.rxarm.go_to_home_pose(moving_time=2,
-                                    accel_time=0.5,
-                                    blocking=True)
         large_xyz = [350, -100, -10]
         small_xyz = [-350, -100, -15]
         while blocks.detected_num > 0:
@@ -922,55 +998,75 @@ class StateMachine():
             ori = blocks.thetas[0]
             pick_sucess, pick_stable = self.auto_pick(block_xyz, ori)
             if not pick_sucess:
-                self.rxarm.go_to_home_pose(moving_time=2,
-                                    accel_time=0.5,
-                                    blocking=True)
-                self.rxarm.go_to_sleep_pose(moving_time=2,
+                self.rxarm.go_to_safe_pose(moving_time=2,
                                             accel_time=0.5,
                                             blocking=True)
+                # self.rxarm.go_to_home_pose(moving_time=2,
+                #                     accel_time=0.5,
+                #                     blocking=True)
+                # self.rxarm.go_to_sleep_pose(moving_time=2,
+                #                             accel_time=0.5,
+                #                             blocking=True)
             else:
                 if sz == 0:
                     print("Place large block to ", large_xyz)
-                    self.auto_place(large_xyz, block_ori=0)
-                    large_xyz[0] = large_xyz[0] - 100
-                    if large_xyz[0] < 150:
-                        large_xyz[0] = 350
-                        large_xyz[1] = -50
+                    if pick_stable:
+                        self.auto_place(large_xyz, block_ori=0)
+                        large_xyz[0] = large_xyz[0] - 100
+                        if large_xyz[0] < 150:
+                            large_xyz[0] = 350
+                            large_xyz[1] = -35
+                    else:
+                        self.auto_place(large_xyz, place_near=True)
+                        self.rxarm.go_to_safe_pose(moving_time=1, accel_time=0.5, blocking=True)
                 else:
                     print("Place small block to ", small_xyz)
-                    self.auto_place(small_xyz, block_ori=0)
-                    small_xyz[0] = small_xyz[0] + 100
-                    if small_xyz[0] > -150:
-                        small_xyz[0] = -350
-                        small_xyz[1] = -50
+                    if pick_stable:
+                        self.auto_place(small_xyz, block_ori=0)
+                        small_xyz[0] = small_xyz[0] + 100
+                        if small_xyz[0] > -150:
+                            small_xyz[0] = -350
+                            small_xyz[1] = -40
+                    else:
+                        self.auto_place(large_xyz, place_near=True)
+                        self.rxarm.go_to_safe_pose(moving_time=1, accel_time=0.5, blocking=True)
 
             self.detect(ignore=5, sort_key="distance")
 
-        self.rxarm.go_to_home_pose(moving_time=2,
+        self.rxarm.go_to_safe_pose(moving_time=2,
                                     accel_time=0.5,
                                     blocking=True)
-        self.rxarm.go_to_sleep_pose(moving_time=2,
-                                    accel_time=0.5,
-                                    blocking=True)
+        # self.rxarm.go_to_home_pose(moving_time=2,
+        #                             accel_time=0.5,
+        #                             blocking=True)
+        # self.rxarm.go_to_sleep_pose(moving_time=2,
+        #                             accel_time=0.5,
+        #                             blocking=True)
         self.detect(ignore=6, sort_key="color")
-        self.rxarm.go_to_home_pose(moving_time=2,
+        self.rxarm.go_to_safe_pose(moving_time=2,
                                     accel_time=0.5,
                                     blocking=True)
+        # self.rxarm.go_to_home_pose(moving_time=2,
+        #                             accel_time=0.5,
+        #                             blocking=True)
         
-        large_xyz = [300, 225, -10]
+        large_xyz = [250, 225, -10]
         small_xyz = [-300, 225, -15]
         while blocks.detected_num > 0:
             block_xyz = blocks.xyzs[0]
             sz = blocks.sizes[0]
             ori = blocks.thetas[0]
-            pick_sucess, pick_stable = self.auto_pick(block_xyz, ori)
+            pick_sucess, pick_stable = self.auto_pick(block_xyz, ori, double_check=False)
             if not pick_sucess:
-                self.rxarm.go_to_home_pose(moving_time=2,
-                                    accel_time=0.5,
-                                    blocking=True)
-                self.rxarm.go_to_sleep_pose(moving_time=2,
+                self.rxarm.go_to_safe_pose(moving_time=2,
                                             accel_time=0.5,
                                             blocking=True)
+                # self.rxarm.go_to_home_pose(moving_time=2,
+                #                     accel_time=0.5,
+                #                     blocking=True)
+                # self.rxarm.go_to_sleep_pose(moving_time=2,
+                #                             accel_time=0.5,
+                #                             blocking=True)
             else:
                 if sz == 0:
                     print("Place large block to ", large_xyz)
@@ -981,17 +1077,14 @@ class StateMachine():
                     self.auto_place(small_xyz, block_ori=0)
                     small_xyz[0] = small_xyz[0] + 40
 
-            self.rxarm.go_to_home_pose(moving_time=1,
+            self.rxarm.go_to_safe_pose(moving_time=1,
                                     accel_time=0.25,
                                     blocking=True)
             self.detect(ignore=6, sort_key="color")
-        
-        self.rxarm.go_to_home_pose(moving_time=2,
+        self.rxarm.go_to_safe_pose(moving_time=2,
                                     accel_time=0.5,
                                     blocking=True)
-        self.rxarm.go_to_sleep_pose(moving_time=2,
-                                    accel_time=0.5,
-                                    blocking=True)
+
 
         if not self.next_state == "estop":
             self.next_state = "idle"
@@ -1000,7 +1093,7 @@ class StateMachine():
         self.current_state = "task4"
         self.status_message = "Start task4!"
 
-        self.rxarm.go_to_sleep_pose(moving_time=2,
+        self.rxarm.go_to_safe_pose(moving_time=2,
                                     accel_time=0.5,
                                     blocking=True)
         if not self.calibrate():
@@ -1009,9 +1102,9 @@ class StateMachine():
         self.detect(ignore=5, sort_key="distance")
         blocks = self.camera.block_detections
 
-        self.rxarm.go_to_home_pose(moving_time=2,
-                                    accel_time=0.5,
-                                    blocking=True)
+        # self.rxarm.go_to_home_pose(moving_time=2,
+        #                             accel_time=0.5,
+        #                             blocking=True)
         large_xyz = [350, -100, -10]
         small_xyz = [-350, -100, -15]
         while blocks.detected_num > 0:
@@ -1020,40 +1113,51 @@ class StateMachine():
             ori = blocks.thetas[0]
             pick_sucess, pick_stable = self.auto_pick(block_xyz, ori)
             if not pick_sucess:
-                self.rxarm.go_to_home_pose(moving_time=2,
-                                    accel_time=0.5,
-                                    blocking=True)
-                self.rxarm.go_to_sleep_pose(moving_time=2,
-                                            accel_time=0.5,
-                                            blocking=True)
+                self.rxarm.go_to_safe_pose(moving_time=1, accel_time=0.5, blocking=True)
+                # self.rxarm.go_to_home_pose(moving_time=2,
+                #                     accel_time=0.5,
+                #                     blocking=True)
+                # self.rxarm.go_to_sleep_pose(moving_time=2,
+                #                             accel_time=0.5,
+                #                             blocking=True)
             else:
                 if sz == 0:
                     print("Place large block to ", large_xyz)
-                    self.auto_place(large_xyz, block_ori=0)
-                    large_xyz[0] = large_xyz[0] - 100
-                    if large_xyz[0] < 150:
-                        large_xyz[0] = 350
-                        large_xyz[1] = -35
+                    if pick_stable:
+                        self.auto_place(large_xyz, block_ori=0)
+                        large_xyz[0] = large_xyz[0] - 100
+                        if large_xyz[0] < 150:
+                            large_xyz[0] = 350
+                            large_xyz[1] = -35
+                    else:
+                        self.auto_place(large_xyz, place_near=True)
+                        self.rxarm.go_to_safe_pose(moving_time=1, accel_time=0.5, blocking=True)
                 else:
                     print("Place small block to ", small_xyz)
-                    self.auto_place(small_xyz, block_ori=0)
-                    small_xyz[0] = small_xyz[0] + 100
-                    if small_xyz[0] > -150:
-                        small_xyz[0] = -350
-                        small_xyz[1] = -50
+                    if pick_stable:
+                        self.auto_place(small_xyz, block_ori=0)
+                        small_xyz[0] = small_xyz[0] + 100
+                        if small_xyz[0] > -150:
+                            small_xyz[0] = -350
+                            small_xyz[1] = -40
+                    else:
+                        self.auto_place(large_xyz, place_near=True)
+                        self.rxarm.go_to_safe_pose(moving_time=1, accel_time=0.5, blocking=True)
 
             self.detect(ignore=5, sort_key="distance")
 
-        self.rxarm.go_to_home_pose(moving_time=2,
-                                    accel_time=0.5,
-                                    blocking=True)
-        self.rxarm.go_to_sleep_pose(moving_time=2,
-                                    accel_time=0.5,
-                                    blocking=True)
+        self.rxarm.go_to_safe_pose(moving_time=1, accel_time=0.5, blocking=True)
+        # self.rxarm.go_to_home_pose(moving_time=2,
+        #                             accel_time=0.5,
+        #                             blocking=True)
+        # self.rxarm.go_to_sleep_pose(moving_time=2,
+        #                             accel_time=0.5,
+        #                             blocking=True)
         self.detect(ignore=6, sort_key="color")
-        self.rxarm.go_to_home_pose(moving_time=2,
-                                    accel_time=0.5,
-                                    blocking=True)
+        self.rxarm.go_to_safe_pose(moving_time=1, accel_time=0.5, blocking=True)
+        # self.rxarm.go_to_home_pose(moving_time=2,
+        #                             accel_time=0.5,
+        #                             blocking=True)
         
         large_xyz = [150, 175, -10]
         small_xyz = [-150, 175, -15]
@@ -1061,14 +1165,15 @@ class StateMachine():
             block_xyz = blocks.xyzs[0]
             sz = blocks.sizes[0]
             ori = blocks.thetas[0]
-            pick_sucess, pick_stable = self.auto_pick(block_xyz, ori)
+            pick_sucess, pick_stable = self.auto_pick(block_xyz, ori, double_check=True)
             if not pick_sucess:
-                self.rxarm.go_to_home_pose(moving_time=2,
-                                    accel_time=0.5,
-                                    blocking=True)
-                self.rxarm.go_to_sleep_pose(moving_time=2,
-                                            accel_time=0.5,
-                                            blocking=True)
+                self.rxarm.go_to_safe_pose(moving_time=1, accel_time=0.5, blocking=True)
+                # self.rxarm.go_to_home_pose(moving_time=2,
+                #                     accel_time=0.5,
+                #                     blocking=True)
+                # self.rxarm.go_to_sleep_pose(moving_time=2,
+                #                             accel_time=0.5,
+                #                             blocking=True)
             else:
                 if sz == 0:
                     print("Place large block to ", large_xyz)
@@ -1080,13 +1185,15 @@ class StateMachine():
                     small_xyz[2] = small_xyz[2] + 25
 
             self.detect(ignore=6, sort_key="color")
-        
-        self.rxarm.go_to_home_pose(moving_time=2,
-                                    accel_time=0.5,
-                                    blocking=True)
-        self.rxarm.go_to_sleep_pose(moving_time=2,
-                                    accel_time=0.5,
-                                    blocking=True)
+
+
+        self.rxarm.go_to_safe_pose(moving_time=1, accel_time=0.5, blocking=True)
+        # self.rxarm.go_to_home_pose(moving_time=2,
+        #                             accel_time=0.5,
+        #                             blocking=True)
+        # self.rxarm.go_to_sleep_pose(moving_time=2,
+        #                             accel_time=0.5,
+        #                             blocking=True)
 
         if not self.next_state == "estop":
             self.next_state = "idle"
@@ -1095,7 +1202,7 @@ class StateMachine():
         self.current_state = "task5"
         self.status_message = "Start task5!"
 
-        self.rxarm.go_to_sleep_pose(moving_time=2,
+        self.rxarm.go_to_safe_pose(moving_time=2,
                                     accel_time=0.5,
                                     blocking=True)
         if not self.calibrate():
@@ -1104,10 +1211,10 @@ class StateMachine():
         self.detect(ignore=5, sort_key="distance")
         blocks = self.camera.block_detections
 
-        self.rxarm.go_to_home_pose(moving_time=2,
-                                    accel_time=0.5,
-                                    blocking=True)
-        large_xyz = [350, -100, -10]
+        # self.rxarm.go_to_home_pose(moving_time=2,
+        #                             accel_time=0.5,
+        #                             blocking=True)
+        large_xyz = [350, -110, -10]
         cnt = 0
         while blocks.detected_num > 0:
             block_xyz = blocks.xyzs[0]
@@ -1115,63 +1222,71 @@ class StateMachine():
             ori = blocks.thetas[0]
             pick_sucess, pick_stable = self.auto_pick(block_xyz, ori)
             if not pick_sucess:
-                self.rxarm.go_to_home_pose(moving_time=2,
-                                    accel_time=0.5,
-                                    blocking=True)
-                self.rxarm.go_to_sleep_pose(moving_time=2,
-                                            accel_time=0.5,
-                                            blocking=True)
+                self.rxarm.go_to_safe_pose(moving_time=1, accel_time=0.5, blocking=True)
+                # self.rxarm.go_to_home_pose(moving_time=2,
+                #                     accel_time=0.5,
+                #                     blocking=True)
+                # self.rxarm.go_to_sleep_pose(moving_time=2,
+                #                             accel_time=0.5,
+                #                             blocking=True)
             else:
                 print("Place large block to ", large_xyz)
-                self.auto_place(large_xyz, block_ori=0)
-                cnt = cnt + 1
-                if cnt < 3:
-                    large_xyz[0] = large_xyz[0] - 100
-                if cnt == 3:
-                    large_xyz = [350, -35, -10]
-                if cnt > 3 and cnt < 6:
-                    large_xyz[0] = large_xyz[0] - 100
-                if cnt == 6:
-                    large_xyz = [-350, -100, -10]
-                if cnt > 6 and cnt < 9:
-                    large_xyz[0] = large_xyz[0] + 100
-                if cnt == 9:
-                    large_xyz = [-350, -35, -10]
-                if cnt > 9 and cnt < 12:
-                    large_xyz[0] = large_xyz[0] + 100
+                if pick_stable:
+                    self.auto_place(large_xyz, block_ori=0)
+                    cnt = cnt + 1
+                    if cnt < 3:
+                        large_xyz[0] = large_xyz[0] - 100
+                    if cnt == 3:
+                        large_xyz = [350, -35, -10]
+                    if cnt > 3 and cnt < 6:
+                        large_xyz[0] = large_xyz[0] - 100
+                    if cnt == 6:
+                        large_xyz = [-350, -100, -10]
+                    if cnt > 6 and cnt < 9:
+                        large_xyz[0] = large_xyz[0] + 100
+                    if cnt == 9:
+                        large_xyz = [-350, -35, -10]
+                    if cnt > 9 and cnt < 12:
+                        large_xyz[0] = large_xyz[0] + 100
+                else:
+                    self.auto_place(large_xyz, place_near=True)
+                    self.rxarm.go_to_safe_pose(moving_time=1, accel_time=0.5, blocking=True)
 
             self.detect(ignore=5, sort_key="distance")
 
-        self.rxarm.go_to_home_pose(moving_time=2,
-                                    accel_time=0.5,
-                                    blocking=True)
-        self.rxarm.go_to_sleep_pose(moving_time=2,
-                                    accel_time=0.5,
-                                    blocking=True)
-        self.detect(ignore=6, sort_key="color")
-        self.rxarm.go_to_home_pose(moving_time=2,
-                                    accel_time=0.5,
-                                    blocking=True)
+        self.rxarm.go_to_safe_pose(moving_time=1, accel_time=0.5, blocking=True)
+        # self.rxarm.go_to_home_pose(moving_time=2,
+        #                             accel_time=0.5,
+        #                             blocking=True)
+        # self.rxarm.go_to_sleep_pose(moving_time=2,
+        #                             accel_time=0.5,
+        #                             blocking=True)
+        self.detect(ignore=6, sort_key="distance")
+        self.rxarm.go_to_safe_pose(moving_time=1, accel_time=0.5, blocking=True)
+        # self.rxarm.go_to_home_pose(moving_time=2,
+        #                             accel_time=0.5,
+        #                             blocking=True)
         
-        large_xyz = [0, 275, -10+38*10]
+        large_xyz = [0, 275, -10]
         while blocks.detected_num > 0:
             block_xyz = blocks.xyzs[0]
             sz = blocks.sizes[0]
             ori = blocks.thetas[0]
-            pick_sucess, pick_stable = self.auto_pick(block_xyz, ori)
+            pick_sucess, pick_stable = self.auto_pick(block_xyz, ori, double_check=True)
             if not pick_sucess:
-                self.rxarm.go_to_home_pose(moving_time=2,
-                                    accel_time=0.5,
-                                    blocking=True)
-                self.rxarm.go_to_sleep_pose(moving_time=2,
-                                            accel_time=0.5,
-                                            blocking=True)
+                self.rxarm.go_to_safe_pose(moving_time=1, accel_time=0.5, blocking=True)
+                # self.rxarm.go_to_home_pose(moving_time=2,
+                #                     accel_time=0.5,
+                #                     blocking=True)
+                # self.rxarm.go_to_sleep_pose(moving_time=2,
+                #                             accel_time=0.5,
+                #                             blocking=True)
             else:
                 print("Place large block to ", large_xyz)
                 self.auto_place(large_xyz, block_ori=0)
                 large_xyz[2] = large_xyz[2] + 38
 
-            self.detect(ignore=6, sort_key="color")
+            self.detect(ignore=6, sort_key="distance")
 
         if not self.next_state == "estop":
             self.next_state = "idle"
@@ -1293,23 +1408,27 @@ class StateMachine():
             blind_rectangle = [(0, int(img_h*frac)), (img_w, img_h)]
         elif ignore==6: # positive half plane
             blind_rectangle = [(0, 0), (img_w, int(img_h*frac))]
+        
+        for i in range(3):
+            self.camera.detectBlocksInDepthImage(blind_rect=blind_rectangle, sort_key=sort_key)
 
-        self.camera.detectBlocksInDepthImage(blind_rect=blind_rectangle, sort_key=sort_key)
         blocks = self.camera.block_detections
+        if blocks.has_cluster:
+            self.rxarm.go_to_safe_pose(moving_time=2,
+                                        accel_time=0.5,
+                                        blocking=True)
         while blocks.has_cluster:
-            self.rxarm.go_to_home_pose(moving_time=2,
-                                        accel_time=0.5,
-                                        blocking=True)
             self.auto_clean(blocks.xyzs[0])
-            self.rxarm.go_to_home_pose(moving_time=2,
+            self.rxarm.go_to_safe_pose(moving_time=2,
                                         accel_time=0.5,
                                         blocking=True)
-            self.rxarm.go_to_sleep_pose(moving_time=2,
-                                        accel_time=0.5,
-                                        blocking=True)
+
             self.camera.detectBlocksInDepthImage(blind_rect=blind_rectangle, sort_key=sort_key)
             blocks = self.camera.block_detections
 
+            self.rxarm.go_to_safe_pose(moving_time=2,
+                                        accel_time=0.5,
+                                        blocking=True)
         self.next_state = "idel"
 
     def initialize_rxarm(self):
