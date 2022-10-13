@@ -263,8 +263,8 @@ class RXArmThread(QThread):
             print(name, pid)
             
         pids = np.asarray(pids)
-        pids[:-1, 0] = 1200
-        # pids[:-1, 2] = 3000
+        pids[1:-1, 0] = 1200
+        # pids[1:-1, 2] = 3000
         print(pids)
         for idx, name in enumerate(joint_names):
             self.rxarm.set_joint_position_pid_params(name, pids[idx, :])
