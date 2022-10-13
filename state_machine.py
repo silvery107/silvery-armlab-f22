@@ -214,7 +214,7 @@ class StateMachine():
     def calMoveTime(self, target_joint):
         displacement = target_joint - self.rxarm.get_positions()
         angular_v = np.ones(displacement.shape) * (np.pi / 4)
-        angular_v[0] = np.pi / 2.5
+        angular_v[0] = np.pi / 3
         angular_v[3] = np.pi / 3
         angular_v[4] = np.pi / 3
         angular_t = np.abs(displacement) / angular_v
@@ -342,6 +342,21 @@ class StateMachine():
 
         move_time, ac_time = self.calMoveTime(joint_angles_start)
         self.rxarm.set_single_joint_position("waist", joint_angles_1[0], moving_time=move_time, accel_time=ac_time, blocking=True)
+
+        if to_sky:
+            front_world_pos = deepcopy(above_world_pos)
+            front_world_pos[0] = front_world_pos[0] + 20
+            reachable_front, joint_angles_front = IK_geometric([front_world_pos[0], 
+                                                        front_world_pos[1], 
+                                                        front_world_pos[2], 
+                                                        0.0],
+                                                        m_matrix=self.rxarm.M_matrix,
+                                                        s_list=self.rxarm.S_list)
+            move_time, ac_time = self.calMoveTime(joint_angles_front)
+            self.rxarm.set_joint_positions(joint_angles_front,
+                                            moving_time=move_time,
+                                            accel_time=ac_time,
+                                            blocking=True)
         
         joint_angles_1[-2] = joint_angles_1[-2] + pick_wrist_offset
         move_time, ac_time = self.calMoveTime(joint_angles_1)
@@ -432,7 +447,7 @@ class StateMachine():
         if not self.next_state == "estop":
             self.next_state = "idle"
 
-    def auto_place(self, _target_world_pos, block_ori=None, phi=np.pi/2, place_near=False):
+    def auto_place(self, _target_world_pos, block_ori=None, phi=np.pi/2, place_near=False, to_sky=False):
         target_world_pos = deepcopy(_target_world_pos)
         above_world_pos = deepcopy(_target_world_pos)
         if place_near:
@@ -526,14 +541,24 @@ class StateMachine():
         ############ Executing #############
         # print("[PLACE]  Executing waypoints...")
         # !!! TODO
-        joint_angles_start = self.rxarm.get_positions()
+        # joint_angles_start = self.rxarm.get_positions()
+        joint_angles_start = [0, 0, 0, 0, 0]
         if _target_world_pos[2] > 38*4+10:
             joint_angles_start = self.rxarm.safe_pose
 
-        move_time = np.abs(joint_angles_1[0] - joint_angles_start[0]) / (np.pi/3)
-        ac_time = move_time / 4
-        print("move time: ", move_time)
-        self.rxarm.set_single_joint_position("waist", joint_angles_1[0], moving_time=move_time, accel_time=ac_time, blocking=True)
+        joint_angles_start[0] = joint_angles_1[0]
+        # move_time = np.abs(joint_angles_1[0] - joint_angles_start[0]) / (np.pi/3)
+        # ac_time = move_time / 4
+        if not to_sky:
+            move_time, ac_time = self.calMoveTime(joint_angles_start)
+            print("move time: ", move_time)
+            self.rxarm.set_single_joint_position("waist", joint_angles_1[0], moving_time=move_time, accel_time=ac_time, blocking=True)
+        else:
+            move_time, ac_time = self.calMoveTime(self.rxarm.safe_pose)
+            self.rxarm.set_joint_positions(self.rxarm.safe_pose,
+                                            moving_time=move_time,
+                                            accel_time=ac_time,
+                                            blocking=True)
 
         # 1. go to point above target pose
         joint_angles_1[-2] = joint_angles_1[-2] + place_wrist_offset
@@ -1228,6 +1253,7 @@ class StateMachine():
         if not self.calibrate():
             self.next_state = "idle"
             return
+
         # self.detect(ignore=5, sort_key="distance")
         # blocks = self.camera.block_detections
 
@@ -1278,6 +1304,8 @@ class StateMachine():
         test = False
         large_xyz = [0, 275, -10]
         counter = 0
+
+        #! Stack 11 block
         while blocks.detected_num > 0 and not test:
             block_xyz = blocks.xyzs[0]
             sz = blocks.sizes[0]
@@ -1287,16 +1315,20 @@ class StateMachine():
                 self.rxarm.go_to_safe_pose(moving_time=2, accel_time=0.5, blocking=True)
             else:
                 print("Place large block to ", large_xyz)
-                self.auto_place(large_xyz, block_ori=0)
+                self.auto_place(large_xyz, block_ori=0, to_sky=True)
                 large_xyz[2] = large_xyz[2] + 38
                 counter = counter + 1
-                if counter > 8:
+                print("counter:", counter)
+                if counter > 10:
                     break
 
             self.detect(ignore=6, sort_key="distance", frac=4/5)
         
         self.detect(ignore=6, sort_key="distance", frac=4/5)
 
+        #! Pile 3 block
+        if test:
+            counter = 11
         pile_xyz = [-350, 0, -10]
         while blocks.detected_num > 0:
             block_xyz = blocks.xyzs[0]
@@ -1307,24 +1339,43 @@ class StateMachine():
                 self.rxarm.go_to_safe_pose(moving_time=2, accel_time=0.5, blocking=True)
             else:
                 print("Place large block to ", pile_xyz)
-                self.auto_place(pile_xyz, block_ori=0)
+                self.auto_place(pile_xyz, block_ori=0)#, phi=0.0)
                 pile_xyz[2] = pile_xyz[2] + 38
                 counter = counter + 1
-                if counter > 8 + 4:
+                print("counter:", counter)
+                if counter > 10 + 3:
                     break
 
             self.detect(ignore=6, sort_key="distance", frac=4/5)
 
+        print("counter:", counter)
+        #* One more pick & place with place phi=0.0
+        if blocks.detected_num > 0:
+            pile_xyz[0] = pile_xyz[0] + 5
+            pile_xyz[2] = pile_xyz[2] - 15
+            block_xyz = blocks.xyzs[0]
+            sz = blocks.sizes[0]
+            ori = blocks.thetas[0]
+            self.auto_pick(block_xyz, ori, double_check=True)
+            self.auto_place(pile_xyz, block_ori=0, phi=0.0)
+            pile_xyz[2] = pile_xyz[2] + 38
+            counter = counter + 1
+
+
         self.detect(ignore=6, sort_key="distance", frac=4/5)
 
+        #* Early break if no pile
+        if counter == 10+1:
+            return
+
         if test:
-            large_xyz[2] = 342 # this val only valid for 8 blocks
+            large_xyz[2] = 456 # this val only valid for 8 blocks
         #* 1. Pick the first level of the block pile with phi=0.0 
-        pile_base_xyz = [-350, 0, 0]
+        pile_base_xyz = [-350, 0, -5]
         pick_sucess, pick_stable = self.auto_pick(pile_base_xyz, block_ori=None, phi=0.0, to_sky=True)
 
         #* 2. Raise the pile to the desired height with x=-275
-        raise_pos_xyz = [-275, 0, large_xyz[2]+20]
+        raise_pos_xyz = [-275, 0, large_xyz[2]+30]
         reachable_sky, joint_angles_sky = IK_geometric([raise_pos_xyz[0], 
                                             raise_pos_xyz[1], 
                                             raise_pos_xyz[2], 
@@ -1339,7 +1390,7 @@ class StateMachine():
         self.rxarm.set_single_joint_position("waist", 0, moving_time=6, accel_time=2, blocking=True)
 
         #* 4. Place the pile to the top of the sky
-        target_pos_xyz = [0, 275, large_xyz[2]-10]
+        target_pos_xyz = [0, 277, large_xyz[2]]
         reachable_end, joint_angles_end = IK_geometric([target_pos_xyz[0], 
                                             target_pos_xyz[1],
                                             target_pos_xyz[2],
