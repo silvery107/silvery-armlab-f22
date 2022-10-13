@@ -436,7 +436,7 @@ class Camera():
             block_xyz = self.coord_pixel_to_world(cx, cy, cz)
 
             # !!! size classification: attention to this moment threshold
-            if M["m00"] < 800:
+            if M["m00"] < 850:
                 block_xyz[2] = block_xyz[2] - 12.5
                 self.block_detections.sizes.append(1) # 1 for small
             else:
@@ -448,6 +448,8 @@ class Camera():
             self.block_detections.contours.append(contours_new_valid)
             self.block_detections.thetas.append(np.deg2rad(block_ori))
             self.block_detections.colors.append(self.retrieve_area_color(self.ProcessVideoFrame, self.ProcessVideoFrameLab, self.ProcessVideoFrameHSV, contours_new_valid))
+            
+            # print(self.color_id[self.block_detections.colors[-1]], M["m00"])
             if self.block_detections.has_cluster:
                 break
 
@@ -505,7 +507,7 @@ class Camera():
         pos_camera = z * np.matmul(self.intrinsic_matrix_inv, index)
         temp_pos = np.array([pos_camera[0][0], pos_camera[1][0], pos_camera[2][0], 1]).reshape((4,1))
         world_pos = np.matmul(self.extrinsic_matrix_inv, temp_pos)
-        return world_pos.flatten()
+        return world_pos.flatten()[:3]
 
 
 class TagImageListener:
