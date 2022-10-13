@@ -201,7 +201,7 @@ def to_s_matrix(w, v):
     return smat
 
 
-def IK_geometric(pose, block_ori=None, dh_params=None, m_matrix=None, s_list=None):
+def IK_geometric(pose, block_ori=None, dh_params=None, m_matrix=None, s_list=None, THETA5=None):
     """!
     @brief      Get all possible joint configs that produce the pose.
 
@@ -246,6 +246,8 @@ def IK_geometric(pose, block_ori=None, dh_params=None, m_matrix=None, s_list=Non
 
     # a. vertical pick: depends on block orientation; 
     # b. hori. pick: 0 
+    if THETA5 is not None:
+        theta5 = THETA5
     if block_ori is None:
         theta5 = 0
     elif block_ori < 0:
