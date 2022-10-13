@@ -247,8 +247,8 @@ class StateMachine():
             self.next_state = "idle"
 
     def auto_pick(self, _target_world_pos, block_ori, phi=np.pi/2, double_check=False, to_sky=False):
-        if to_sky:
-            _target_world_pos = [-345, 0, 0]
+        # if to_sky:
+        #     _target_world_pos = [-345, 0, 0]
         target_world_pos = deepcopy(_target_world_pos)
         above_world_pos = deepcopy(_target_world_pos)
         print("!!!!!!!!!!!!!!!!!!!!!!!!!!! pick pos:", target_world_pos)
@@ -1297,7 +1297,7 @@ class StateMachine():
         
         self.detect(ignore=6, sort_key="distance", frac=4/5)
 
-        large_xyz = [-350, 0, -10]
+        pile_xyz = [-350, 0, -10]
         while blocks.detected_num > 0:
             block_xyz = blocks.xyzs[0]
             sz = blocks.sizes[0]
@@ -1306,35 +1306,40 @@ class StateMachine():
             if not pick_sucess:
                 self.rxarm.go_to_safe_pose(moving_time=2, accel_time=0.5, blocking=True)
             else:
-                print("Place large block to ", large_xyz)
-                self.auto_place(large_xyz, block_ori=0)
-                large_xyz[2] = large_xyz[2] + 38
+                print("Place large block to ", pile_xyz)
+                self.auto_place(pile_xyz, block_ori=0)
+                pile_xyz[2] = pile_xyz[2] + 38
                 counter = counter + 1
-                if counter > 8 + 3:
+                if counter > 8 + 4:
                     break
 
             self.detect(ignore=6, sort_key="distance", frac=4/5)
 
         self.detect(ignore=6, sort_key="distance", frac=4/5)
 
-        large_xyz = [-350, 0, 0]
-        pick_sucess, pick_stable = self.auto_pick(large_xyz, block_ori=None, phi=0.0, double_check=True, to_sky=True)
-        reachable, joint_angles_sky = IK_geometric([-275, 
-                                            large_xyz[1],
-                                            large_xyz[2]+342+20,
+        if test:
+            large_xyz[2] = 342 # this val only valid for 8 blocks
+        #* 1. Pick the first level of the block pile with phi=0.0 
+        pile_base_xyz = [-350, 0, 0]
+        pick_sucess, pick_stable = self.auto_pick(pile_base_xyz, block_ori=None, phi=0.0, to_sky=True)
+
+        #* 2. Raise the pile to the desired height with x=-275
+        raise_pos_xyz = [-275, 0, large_xyz[2]+20]
+        reachable_sky, joint_angles_sky = IK_geometric([raise_pos_xyz[0], 
+                                            raise_pos_xyz[1], 
+                                            raise_pos_xyz[2], 
                                             0.0],
                                             block_ori=None,
                                             m_matrix=self.rxarm.M_matrix,
                                             s_list=self.rxarm.S_list)
-        if reachable:
-            self.rxarm.set_joint_positions(joint_angles_sky,
-                                            moving_time=7,
-                                            accel_time=7/4,
-                                            blocking=True)
+        if reachable_sky:
+            self.rxarm.set_joint_positions(joint_angles_sky, moving_time=7, accel_time=2, blocking=True)
 
-        # self.rxarm.set_ee_cartesian_trajectory(z=342, moving_time=6)
+        #* 3. Rotate waist joint to 0 position
         self.rxarm.set_single_joint_position("waist", 0, moving_time=6, accel_time=2, blocking=True)
-        target_pos_xyz = [0, 275, -10+342]
+
+        #* 4. Place the pile to the top of the sky
+        target_pos_xyz = [0, 275, large_xyz[2]-10]
         reachable_end, joint_angles_end = IK_geometric([target_pos_xyz[0], 
                                             target_pos_xyz[1],
                                             target_pos_xyz[2],
