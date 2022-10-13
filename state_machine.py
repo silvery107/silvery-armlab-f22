@@ -501,9 +501,9 @@ class StateMachine():
         if not reachable_high or not reachable_low:
             target_world_pos = deepcopy(_target_world_pos)
             above_world_pos = deepcopy(_target_world_pos)
-            if _target_world_pos[2] >= 38*4+10:
-                target_world_pos[1] = target_world_pos[1] - 15
-                above_world_pos[1] = above_world_pos[1] - 15
+            if _target_world_pos[2] >= 38*4+10 and to_sky:
+                target_world_pos[1] = target_world_pos[1] - 13
+                above_world_pos[1] = above_world_pos[1] - 13
             target_world_pos[2] = target_world_pos[2] + 12
             above_world_pos[2] = above_world_pos[2] + 12 + 80
             reachable_low, joint_angles_2 = IK_geometric([target_world_pos[0], 
@@ -1351,8 +1351,8 @@ class StateMachine():
         print("counter:", counter)
         #* One more pick & place with place phi=0.0
         if blocks.detected_num > 0:
-            pile_xyz[0] = pile_xyz[0] + 5
-            pile_xyz[2] = pile_xyz[2] - 15
+            pile_xyz[0] = pile_xyz[0] + 7
+            pile_xyz[2] = pile_xyz[2] - 20
             block_xyz = blocks.xyzs[0]
             sz = blocks.sizes[0]
             ori = blocks.thetas[0]
@@ -1365,11 +1365,13 @@ class StateMachine():
         self.detect(ignore=6, sort_key="distance", frac=4/5)
 
         #* Early break if no pile
-        if counter == 10+1:
+        if counter < 10+1:
             return
 
         if test:
             large_xyz[2] = 456 # this val only valid for 8 blocks
+        else:
+            large_xyz[2] = large_xyz[2] + 38
         #* 1. Pick the first level of the block pile with phi=0.0 
         pile_base_xyz = [-350, 0, -5]
         pick_sucess, pick_stable = self.auto_pick(pile_base_xyz, block_ori=None, phi=0.0, to_sky=True)
@@ -1390,7 +1392,7 @@ class StateMachine():
         self.rxarm.set_single_joint_position("waist", 0, moving_time=6, accel_time=2, blocking=True)
 
         #* 4. Place the pile to the top of the sky
-        target_pos_xyz = [0, 277, large_xyz[2]]
+        target_pos_xyz = [0, 276, large_xyz[2]]
         reachable_end, joint_angles_end = IK_geometric([target_pos_xyz[0], 
                                             target_pos_xyz[1],
                                             target_pos_xyz[2],
