@@ -1619,7 +1619,7 @@ class StateMachine():
         self.camera.extrinsic_matrix = np.row_stack((extrinsic_temp, extrinsic_pad)) # 4x4
         self.camera.extrinsic_matrix_inv = np.linalg.pinv(self.camera.extrinsic_matrix)
         self.camera.cameraCalibrated = True
-        # print(self.camera.extrinsic_matrix)
+        print(self.camera.extrinsic_matrix)
         print("[CALIBRATE]  Calibration successed!")
 
         self.next_state = "idle"
