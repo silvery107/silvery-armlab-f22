@@ -350,8 +350,24 @@ class Camera():
         # depth_stuff = cv2.bitwise_and(self.ProcessDepthFrameRaw, self.ProcessDepthFrameRaw, mask=img_depth_thr)
         # d_array = depth_stuff[depth_stuff>0]
         # d_sort = np.sort(d_array)
-        # fig = plt.figure()
-        # plt.scatter(np.arange(len(d_sort)), d_sort)
+        # fig = plt.figure(figsize=(8,6))
+        # font = {
+        #     'family': 'monospace',
+        #     'weight': 'normal',
+        #     'size': 20,
+        # }
+
+
+        # plt.style.use('seaborn')
+        # # plt.scatter(np.arange(len(d_sort)), d_sort)
+        # total_bins = np.bincount(d_sort)
+        # bins = np.count_nonzero(total_bins)
+
+        # plt.hist(d_sort, bins=bins)
+        # plt.ylabel("Occurrences", fontdict=font)
+        # plt.xlabel("Depth Values", fontdict=font)
+        # plt.xticks(fontsize=font["size"])
+        # plt.yticks(fontsize=font["size"])
         
         # ax = fig.gca(projection='3d')
         # xspan = np.arange(1280)
@@ -363,7 +379,7 @@ class Camera():
         #             linewidth=0, antialiased=False)
         # ax.set_zlim(0, 1000)
                     
-        # plt.savefig("test.png")
+        plt.savefig("test_{:.3f}.png".format(np.random.random()))
 
         for contour in contours:
             M = cv2.moments(contour)
