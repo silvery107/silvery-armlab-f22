@@ -379,7 +379,7 @@ class Camera():
         #             linewidth=0, antialiased=False)
         # ax.set_zlim(0, 1000)
                     
-        plt.savefig("test_{:.3f}.png".format(np.random.random()))
+        # plt.savefig("test_{:.3f}.png".format(np.random.random()))
 
         for contour in contours:
             M = cv2.moments(contour)

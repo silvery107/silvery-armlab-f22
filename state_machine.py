@@ -1251,12 +1251,6 @@ class StateMachine():
                 self.rxarm.go_to_safe_pose(moving_time=2,
                                             accel_time=0.5,
                                             blocking=True)
-                # self.rxarm.go_to_home_pose(moving_time=2,
-                #                     accel_time=0.5,
-                #                     blocking=True)
-                # self.rxarm.go_to_sleep_pose(moving_time=2,
-                #                             accel_time=0.5,
-                #                             blocking=True)
             else:
                 if self.pick_size == 0:
                     large_cnt = large_cnt + 1
