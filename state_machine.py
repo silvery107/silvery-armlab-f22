@@ -1390,7 +1390,7 @@ class StateMachine():
         # self.rxarm.go_to_safe_pose(moving_time=1, accel_time=0.5, blocking=True)
         blocks = self.camera.block_detections
         
-        test = True
+        test = False
         large_xyz = [0, 275, -10]
         counter = 0
 
